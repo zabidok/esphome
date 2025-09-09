@@ -1,5 +1,13 @@
-# File: packages/ble_atc_pack.yaml
+# ==========================================================
+# Reusable BLE ATC MiThermometer pack
+# - Provides: temperature, humidity, battery, and "last update" timestamp
+# - Optimized for low DB noise via throttling (kept at 60s as before)
+# - Timestamp is published on every temperature update
+# - Uses `home_time` from base package for consistent time
+# ==========================================================
 
+# Human-readable "last update" timestamp.
+# NOTE: `update_interval: never` ensures this sensor only updates when we publish from the lambda.
 text_sensor:
   - platform: template
     name: "${room} update"
@@ -11,33 +19,52 @@ text_sensor:
 
 sensor:
   - platform: atc_mithermometer
-    id: temp_${room}
+    # id: temp_${room}        # Uncomment only if you need to reference the component (saves a tiny bit of RAM if omitted)
     mac_address: "${mac}"
+
+    # === Temperature ===
     temperature:
-      filters:
-        - throttle: 60s
-      force_update: false
-      icon: mdi:temperature-celsius
       name: "${room} temp"
       id: t_${room}
+      icon: mdi:temperature-celsius
+      device_class: temperature    # Implied by platform
+      state_class: measurement     # Implied by platform
+      # accuracy_decimals: 1         # Optional: reduce DB size by rounding (keep commented to avoid behavior change)
+      filters:
+        - throttle: 60s              # Publish at most once per 60s
+        # - delta: 0.2               # Optional: only publish if changed ≥ 0.2°C (uncomment if you want fewer updates)
+      force_update: false            # Do not force duplicates
       on_value:
         then:
           - lambda: |-
+              // Publish ISO-8601 timestamp when temperature updates
               if (id(home_time).now().is_valid()) {
                 char buf[32];
-                auto t = id(home_time).now();
+                auto t = id(home_time).now();  // Local time (timezone set in base.yaml)
                 t.strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ");
+                // NOTE: The 'Z' denotes UTC; if you prefer local offset, use e.g. "%Y-%m-%dT%H:%M:%S%z"
                 id(${room}_ts).publish_state(std::string(buf));
               }
+
+    # === Humidity ===
     humidity:
-      icon: mdi:water-percent
       name: "${room} hum"
       id: h_${room}
+      icon: mdi:water-percent
+      device_class: humidity       # Implied by platform
+      state_class: measurement     # Implied by platform
       filters:
-        - throttle: 60s
+        - throttle: 60s              # Publish at most once per 60s
+        # - delta: 1.0               # Optional: only publish if changed ≥ 1% RH
+
+    # === Battery level ===
     battery_level:
-      icon: mdi:battery
       name: "${room} batt"
       id: b_${room}
+      icon: mdi:battery
+      entity_category: diagnostic
+      device_class: battery        # Implied by platform
+      state_class: measurement     # Implied by platform
       filters:
-        - throttle: 60s
+        - throttle: 60s              # Battery doesn’t change often; keep conservative to reduce DB churn
+        # - heartbeat: 30min         # Optional: ensure a periodic reading even if unchanged

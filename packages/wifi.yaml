@@ -1,8 +1,14 @@
-# File: packages/wifi.yaml
+# ==========================================
+# Wi-Fi + Wi-Fi info sensors (Web/HA display)
+# - Keep only connectivity + minimal info here
+# - Text sensors show current SSID and IP
+# ==========================================
+
 wifi:
   networks:
     - ssid: !secret wifi_ssid_one
       password: !secret wifi_ssid_one_pass
+      # priority: 0.8       # Optional: prefer this AP if you have overlapping coverage
     - ssid: !secret wifi_ssid_two
       password: !secret wifi_ssid_two_pass
     - ssid: !secret wifi_ssid_three
@@ -10,22 +16,36 @@ wifi:
     - ssid: !secret wifi_ssid_four
       password: !secret wifi_ssid_four_pass
 
+  # Optional static IP (saves DHCP time, useful for stable API/Web access)
   # manual_ip:
   #   static_ip: !secret ip_static
   #   gateway:   !secret ip_gateway
   #   subnet:    !secret ip_subnet
+  #   # dns1: 1.1.1.1
+  #   # dns2: 8.8.8.8
 
   ap:
     ssid: "${name}-fallback"
     password: !secret ap_pass
+    # channel: 6            # Optional: set if your main AP is fixed to speed up association
 
-  on_connect:
-    then:
-      - wait_until:
-          condition:
-            lambda: |-
-              return id(ip_addr).has_state() && id(ip_addr).state.length() > 0;
-          timeout: 30s
-      - logger.log:
-          format: "C0nnected. IP: %s"
-          args: [ "id(ip_addr).state.c_str()" ]
+  # Stability & power (safe, opt-in tweaks)
+  # fast_connect: true      # Enable if SSID is hidden or AP channel is fixed
+  # power_save_mode: LIGHT  # Saves power; can add latency for BLE/Web/API
+  # reboot_timeout: 0s      # Do NOT auto-reboot when Wi-Fi is down (device keeps running)
+  # output_power: 17dB      # Reduce TX power if you’re close to AP (less heat/interference)
+
+# Expose SSID & IP in the Web UI (and HA if not internal)
+text_sensor:
+  - platform: wifi_info
+    ssid:
+      name: "WiFi SSID"
+      icon: mdi:wifi
+      entity_category: diagnostic
+      # internal: true       # Uncomment to hide from Home Assistant (web UI still shows it)
+    ip_address:
+      name: "IP"
+      id: ip_addr
+      icon: mdi:ip
+      entity_category: diagnostic
+      # internal: true       # Uncomment to hide from Home Assistant

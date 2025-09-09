@@ -1,23 +1,35 @@
-# File: packages/base.yaml
+# ===============================
+# Base ESPHome config for ESP32
+# - Keeps only cross-cutting services here (logger, API, OTA, web, time, etc.)
+# - Device-specific features (Wi-Fi, BLE, sensors) live in other packages
+# - Safe to reuse across multiple nodes via `packages:`
+# ===============================
+
+esphome:
+  name: ${name}            # Node name (used for mDNS, API, logs, etc.)
+  friendly_name: ${name}   # Shown in Home Assistant UI
+
 esp32:
+  board: esp32dev
   framework:
-    type: esp-idf
+    type: esp-idf          # ESP-IDF is leaner than Arduino for many cases
 
 logger:
-  level: DEBUG
+  level: DEBUG             # Use INFO/WARN in production to save flash & RAM
+  # baud_rate: 115200      # If you don't need serial logs, set to 0 to free UART: baud_rate: 0
 
 api:
-  reboot_timeout: 0s
+  reboot_timeout: 0s       # Do not reboot when HA/API disconnects
   # encryption:
-  #   key: !secret api_key
+  #   key: !secret api_key # Uncomment to secure API (recommended for public networks)
 
 ota:
   platform: esphome
-  password: !secret ota_pass
+  # password: !secret ota_pass  # Uncomment to protect OTA updates
 
 web_server:
   port: 80
-  version: 3
+  version: 3               # Async web server (lower memory footprint vs v2)
   # auth:
   #   username: !secret web_user
   #   password: !secret web_pass
@@ -25,16 +37,9 @@ web_server:
 time:
   - platform: sntp
     id: home_time
+    # timezone: Europe/Sofia # Keeps timestamps correct for your locale
+    # servers:             # Optional: custom NTP servers
+    #   - 0.pool.ntp.org
+    #   - 1.pool.ntp.org
 
-captive_portal:
-
-text_sensor:
-  - platform: wifi_info
-    ip_address:
-      id: ip_addr
-      internal: true
-      on_value:
-        then:
-          - logger.log:
-              format: "Got IP: %s"
-              args: [ "x.c_str()" ]
+captive_portal:            # Provides fallback AP portal when Wi-Fi fails
