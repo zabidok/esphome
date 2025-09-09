@@ -1,0 +1,43 @@
+# File: packages/ble_atc_pack.yaml
+
+text_sensor:
+  - platform: template
+    name: "${room} update"
+    id: ${room}_ts
+    device_class: timestamp
+    entity_category: diagnostic
+    update_interval: never
+    icon: mdi:clock
+
+sensor:
+  - platform: atc_mithermometer
+    id: temp_${room}
+    mac_address: "${mac}"
+    temperature:
+      filters:
+        - throttle: 60s
+      force_update: false
+      icon: mdi:temperature-celsius
+      name: "${room} temp"
+      id: t_${room}
+      on_value:
+        then:
+          - lambda: |-
+              if (id(home_time).now().is_valid()) {
+                char buf[32];
+                auto t = id(home_time).now();
+                t.strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ");
+                id(${room}_ts).publish_state(std::string(buf));
+              }
+    humidity:
+      icon: mdi:water-percent
+      name: "${room} hum"
+      id: h_${room}
+      filters:
+        - throttle: 60s
+    battery_level:
+      icon: mdi:battery
+      name: "${room} batt"
+      id: b_${room}
+      filters:
+        - throttle: 60s

@@ -1,0 +1,31 @@
+# File: packages/wifi.yaml
+wifi:
+  networks:
+    - ssid: !secret wifi_ssid_one
+      password: !secret wifi_ssid_one_pass
+    - ssid: !secret wifi_ssid_two
+      password: !secret wifi_ssid_two_pass
+    - ssid: !secret wifi_ssid_three
+      password: !secret wifi_ssid_three_pass
+    - ssid: !secret wifi_ssid_four
+      password: !secret wifi_ssid_four_pass
+
+  # manual_ip:
+  #   static_ip: !secret ip_static
+  #   gateway:   !secret ip_gateway
+  #   subnet:    !secret ip_subnet
+
+  ap:
+    ssid: "${name}-fallback"
+    password: !secret ap_pass
+
+  on_connect:
+    then:
+      - wait_until:
+          condition:
+            lambda: |-
+              return id(ip_addr).has_state() && id(ip_addr).state.length() > 0;
+          timeout: 30s
+      - logger.log:
+          format: "C0nnected. IP: %s"
+          args: [ "id(ip_addr).state.c_str()" ]

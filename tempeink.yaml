@@ -1,0 +1,89 @@
+# file : tempeink.yaml
+
+substitutions:
+  name: tempeink
+
+esphome:
+  name: ${name}
+  # platformio_options:
+    # platform: https://github.com/pioarduino/platform-espressif32/releases/download/54.03.21/platform-espressif32.zip
+    # lib_deps:
+    #   - zinggjm/GxEPD2
+    # lib_ldf_mode: chain
+    # build_unflags:
+    #   - -fno-lto
+    # build_flags:
+      # # Оптимизация “на размер” + LTO
+      # - -Os
+      # - -flto #big size
+      # # Выкидываем неиспользуемые функции/данные
+      # - -ffunction-sections
+      # - -fdata-sections
+      # - -Wl,--gc-sections
+      # # - -I$PROJECT_PACKAGES_DIR/framework-arduinoespressif32/libraries/Network/src
+      # - -D CORE_DEBUG_LEVEL=0 #big size
+      # - -fno-rtti #remove
+      # - -fno-exceptions
+      # - -fno-unwind-tables
+      # - -fno-asynchronous-unwind-tables
+
+# external_components:
+#   - source: my_components
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+
+esp32_ble_tracker:
+    scan_parameters:
+      active: false
+      interval: 320ms
+      window: 30ms
+
+logger:
+  logs:
+    atc_mithermometer: WARN
+
+packages:
+  base:  !include packages/base.yaml
+  wifi:  !include packages/wifi.yaml
+  # твои BLE-подключения...
+  ble_kitchen: !include
+    file: packages/ble_atc_pack.yaml
+    vars: { room: kitchen, mac: "A4:C1:38:38:E9:1B" }
+  ble_plant: !include
+    file: packages/ble_atc_pack.yaml
+    vars: { room: plant,   mac: "A4:C1:38:0E:1C:EE" }
+  ble_street: !include
+    file: packages/ble_atc_pack.yaml
+    vars: { room: street,  mac: "A4:C1:38:45:36:6F" }
+# --- КНОПКИ ---
+button:
+  - platform: template
+    name: "Redraw dashboard (by method)"
+    # on_press:
+      # - lambda: |-
+          # id(epd)->draw_dashboard_now();
+
+  # Оставлена на будущее — сейчас update() пустой по ТЗ
+  - platform: template
+    name: "Redraw (component.update)"
+    # on_press:
+    #   - component.update: epd
+
+# --- ДИСПЛЕЙ ---
+# display:
+#   - platform: my_gxepd2
+#     id: epd
+#     width: 400
+#     height: 300
+#     sck_pin: 13
+#     mosi_pin: 14
+#     miso_pin: -1
+#     cs_pin: 15
+#     dc_pin: 27
+#     reset_pin: 26
+#     busy_pin: 25
+#     update_interval: never

@@ -1,0 +1,40 @@
+# File: packages/base.yaml
+esp32:
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+api:
+  reboot_timeout: 0s
+  # encryption:
+  #   key: !secret api_key
+
+ota:
+  platform: esphome
+  password: !secret ota_pass
+
+web_server:
+  port: 80
+  version: 3
+  # auth:
+  #   username: !secret web_user
+  #   password: !secret web_pass
+
+time:
+  - platform: sntp
+    id: home_time
+
+captive_portal:
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      id: ip_addr
+      internal: true
+      on_value:
+        then:
+          - logger.log:
+              format: "Got IP: %s"
+              args: [ "x.c_str()" ]

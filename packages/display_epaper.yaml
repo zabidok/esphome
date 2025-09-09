@@ -1,0 +1,83 @@
+# File: packages/display_epaper.yaml
+
+font:
+  - file: "gfonts://Roboto Mono"
+    id: f
+    size: 18
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+
+#/*CS=*/15, // Chip Select /*DC=*/27, // Data/Command /*RST=*/26, // Reset /*BUSY=*/25 // Busy
+# display:
+#   - platform: waveshare_epaper
+#     id: eink
+#     cs_pin:
+#       number: GPIO15
+#       ignore_strapping_warning: true
+#     dc_pin: GPIO27
+#     reset_pin: GPIO26
+#     busy_pin: GPIO25
+#     model: 2.70in-b
+#     rotation: 0
+#     update_interval: 120s
+#     reset_duration: 500ms
+#     lambda: |-
+#       // Полезные границы для 400x300: рисуем от 8 до 392 (400-8)
+#       const int XL = 8;
+#       const int XR = 392;
+
+#       // Заголовок: время и IP
+#       if (id(home_time).now().is_valid()) {
+#         char buf[20];
+#         id(home_time).now().strftime(buf, sizeof(buf), "%d.%m %H:%M");
+#         it.printf(300, 4, id(f), TextAlign::TOP_RIGHT, "%s", buf);
+#       } else {
+#         it.print(300, 4, id(f), TextAlign::TOP_RIGHT, "no time");
+#       }
+#       if (id(ip_addr).has_state()) {
+#         it.printf(XL, 4, id(f), "IP: %s", id(ip_addr).state.c_str());
+#       } else {
+#         it.print(XL, 4, id(f), "IP: -");
+#       }
+
+#       // Горизонтальный разделитель (была hline, теперь line)
+#       it.line(XL, 28, XR, 28);
+
+#       // Kitchen
+#       it.print(XL, 42, id(f), "Kitchen");
+#       it.printf(300, 42, id(f), TextAlign::TOP_RIGHT, "%.1f°C  %d%%",
+#                 id(t_kitchen).state, (int) id(h_kitchen).state);
+
+#       // Plant
+#       it.print(XL, 68, id(f), "Plant");
+#       it.printf(300, 68, id(f), TextAlign::TOP_RIGHT, "%.1f°C  %d%%",
+#                 id(t_plant).state, (int) id(h_plant).state);
+
+#       // Street
+#       it.print(XL, 94, id(f), "Street");
+#       it.printf(300, 94, id(f), TextAlign::TOP_RIGHT, "%.1f°C  %d%%",
+#                 id(t_street).state, (int) id(h_street).state);
+
+#       // Нижний разделитель
+#       it.line(XL, 118, XR, 118);
+
+#       // Батарейки
+#       it.printf(XL, 130, id(f), "Batt K/P/S: %d/%d/%d%%",
+#                 (int) id(b_kitchen).state,
+#                 (int) id(b_plant).state,
+#                 (int) id(b_street).state);
+
+
+display:
+  - platform: waveshare_epaper
+    cs_pin: GPIO15
+    dc_pin: GPIO27
+    busy_pin: GPIO25
+    reset_pin: GPIO26
+    model: 4.20in
+    update_interval: 120s
+    reset_duration: 500ms
+    lambda: |-
+      it.print(0, 0, id(f), "Hello World!");
