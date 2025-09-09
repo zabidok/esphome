@@ -19,7 +19,7 @@ esp32_ble_tracker:
 logger:
   logs:
     atc_mithermometer: WARN  # Reduce BLE parser spam in logs
-
+prometheus:
 packages:
   base:  !include packages/base.yaml
   wifi:  !include packages/wifi.yaml
