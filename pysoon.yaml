@@ -1,0 +1,208 @@
+esphome:
+  name: pysoon
+
+esp32:
+  # Board lilygo t-relay 8 channels
+  board: esp32dev
+  framework:
+    type: esp-idf
+    # sdkconfig_options:
+    #   CONFIG_BT_ENABLED: y
+    #   CONFIG_BT_BLUEDROID_ENABLED: n
+    #   CONFIG_BT_CLASSIC_ENABLED: n
+    #   CONFIG_BT_NIMBLE_ENABLED: y
+    #   CONFIG_BTDM_CTRL_MODE_BLE_ONLY: y
+    #   CONFIG_BT_NIMBLE_MAX_CONNECTIONS: "1"
+    #   CONFIG_BT_NIMBLE_NVS_PERSIST: y
+
+# ========= CORE =========
+logger:
+  # level: LOG
+wifi:
+  networks:
+  - ssid: "AWERY"
+    password: "openfreenet@21"
+  - ssid: "VIVACOM_C153"
+    password: "dGQXNPAd9ukZ"
+  ap:
+    ssid: "Pysoon Hotspot"
+    password: ""
+
+captive_portal:
+
+api:
+  reboot_timeout: 0s
+  password: ""
+
+ota:
+  platform: esphome
+  password: ""
+
+web_server:
+  port: 85
+  version: 3
+  auth:
+    username: "zabidok"
+    password: "Za456579"
+
+time:
+  - platform: sntp
+    id: home_time
+
+substitutions:
+  relay_1_pin: GPIO33
+  relay_2_pin: GPIO32
+  relay_3_pin: GPIO13
+  relay_4_pin: GPIO12
+  relay_5_pin: GPIO21
+  relay_6_pin: GPIO19
+  relay_7_pin: GPIO18
+  relay_8_pin: GPIO05
+  flow_pin: GPIO36          # NOTE: this pin has no internal pullups; if possible move to GPIO27/26/25 with pullup
+  default_ml_per_pulse: "0.182"
+
+globals:
+  # Session base (pulses at start)
+  - id: start_pulses
+    type: uint32_t
+    initial_value: "0"
+  # Watering active flag (for UI and logic)
+  - id: watering_active
+    type: bool
+    initial_value: "false"
+
+# Calibration: milliliters per 1 pulse
+number:
+  - platform: template
+    name: "ML per Pulse"
+    id: ml_per_pulse
+    optimistic: true
+    restore_value: true
+    min_value: 0.10
+    max_value: 10.0
+    step: 0.001
+    initial_value: ${default_ml_per_pulse}
+    unit_of_measurement: "mL/imp"
+
+# Control buttons
+button:
+  - platform: template
+    name: "Start Watering"
+    id: btn_start_watering
+    icon: "mdi:play-circle"
+    on_press:
+      then:
+        - script.execute: start_watering
+
+  - platform: template
+    name: "Stop Watering"
+    id: btn_stop_watering
+    icon: "mdi:stop-circle"
+    on_press:
+      then:
+        - script.execute: stop_watering
+
+# Status indicator
+binary_sensor:
+  - platform: template
+    id: watering_active_bs
+    name: "Watering Active"
+
+sensor:
+  # Pulse source (internal).
+  - platform: pulse_meter
+    id: flow_pm
+    internal: true
+    pin: ${flow_pin}
+    internal_filter: 5ms
+    internal_filter_mode: PULSE
+    timeout: 1s
+    total:
+      id: total_pulses
+      name: "Total Pulses (Raw)"
+      unit_of_measurement: "imp"
+      state_class: total_increasing
+      accuracy_decimals: 0
+
+  # Session metrics (periodic update)
+  - platform: template
+    id: pulses_session
+    name: "Pulses Session"
+    unit_of_measurement: "imp"
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 60s
+    lambda: |-
+      int run = (int) id(total_pulses).state - (int) id(start_pulses);
+      if (run < 0) run = 0;
+      return run;
+
+  - platform: template
+    id: ml_session
+    name: "Water Session"
+    unit_of_measurement: "mL"
+    device_class: water
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 60s
+    lambda: |-
+      // Directly from total to avoid timing dependency
+      int run = (int) id(total_pulses).state - (int) id(start_pulses);
+      if (run < 0) run = 0;
+      return run * id(ml_per_pulse).state;
+
+  # Total (raw: always increasing)
+  - platform: template
+    id: ml_total_raw
+    name: "Water Total (Raw)"
+    unit_of_measurement: "mL"
+    device_class: water
+    state_class: total_increasing
+    accuracy_decimals: 1
+    # update_interval: 2s
+    update_interval: never
+    # lambda: |-
+      # return id(total_pulses).state * id(ml_per_pulse).state;
+
+# Scripts
+script:
+  # Start session: reset session counters and baseline
+  - id: start_watering
+    mode: restart
+    then:
+      - lambda: |-
+          id(start_pulses) = (uint32_t) id(total_pulses).state;
+      - sensor.template.publish:
+          id: pulses_session
+          state: 0
+      - sensor.template.publish:
+          id: ml_session
+          state: 0.0
+      - lambda: |-
+          id(watering_active) = true;
+          id(watering_active_bs).publish_state(true);
+      - logger.log: "Water START"
+
+  # Stop session: keep session results visible
+  - id: stop_watering
+    mode: restart
+    then:
+      - lambda: |-
+          id(watering_active) = false;
+          id(watering_active_bs).publish_state(false);
+          id(ml_total_raw).publish_state(id(total_pulses).state * id(ml_per_pulse).state);
+      - logger.log: "Water STOP"
+  - id: session_burst_update
+    mode: restart
+    then:
+      - while:
+          condition:
+            lambda: |-
+              return id(watering_active);
+          then:
+            - lambda: |-
+                int run = (int) id(total_pulses).state - (int) id(start_pulses);
+                if (run < 0) run = 0;
+                id(pulses_session).publish_state(run);
+                id(ml_session).publish_state(run * id(ml_per_pulse).state);
+            - delay: 200ms
