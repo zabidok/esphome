@@ -70,19 +70,17 @@ An ESP32-based irrigation/dosing controller with:
 1. **Create `secrets.yaml`** (example):
 
    ```yaml
-   wifi1_ssid: "YOUR-SSID-1"
-   wifi1_pass: "YOUR-PASS-1"
-   wifi2_ssid: "YOUR-SSID-2"
-   wifi2_pass: "YOUR-PASS-2"
-   wifi3_ssid: "YOUR-SSID-3"
-   wifi3_pass: "YOUR-PASS-3"
+   wifi_ssid_one: "YOUR-SSID-1"
+   wifi_ssid_one_pass: "YOUR-PASS-1"
+   wifi_ssid_two: "YOUR-SSID-2"
+   wifi_ssid_two_pass: "YOUR-PASS-2"
+   wifi_ssid_three: "YOUR-SSID-3"
+   wifi_ssid_three_pass: "YOUR-PASS-3"
 
-   ap_pass: ""                # or set a password
+   api_pass: "strong-api-pass"
+   ota_pass: "strong-ota-pass"
 
-   api_password: "strong-api-pass"
-   ota_password: "strong-ota-pass"
-
-   web_user: "zabidok"
+   web_user: "mylogin"
    web_pass: "strong-web-pass"
    ```
 
