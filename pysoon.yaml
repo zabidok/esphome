@@ -355,6 +355,7 @@ sensor:
     accuracy_decimals: 2
   - platform: wifi_signal
     name: "WiFi Signal"
+    icon: "mdi:wifi-strength-2"
     update_interval: 60s
   - platform: uptime
     name: "Uptime"
