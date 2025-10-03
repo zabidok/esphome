@@ -1,10 +1,185 @@
+
+---
+
+# ESPHome — Pysoon Irrigation Controller (ESP32) + Web UI
+
+This repo now contains **two independent ESPHome setups**:
+
+1. **Pysoon Irrigation Controller** (this section)
+2. **ESP32 BLE Thermometers (ATC)** (see next section)
+
+---
+
+## Pysoon — Overview
+
+An ESP32-based irrigation/dosing controller with:
+
+* **Dual-route diverter**: BIG/SMALL outlet (1 relay)
+* **Two supply valves**: IN + OUT (2 relays)
+* **Main pump** (1 relay)
+* **Flow meter (pulse)**–based dosing with per-pulse calibration (`mL/imp`)
+* **Tail compensation** to offset overrun/inertia (configurable `tail_ml`)
+* **Watchdogs/failsafes**:
+
+  * **Valves watchdog** (shared): closes any open valve/diverter after `max_work_time_valve`
+  * **Pump watchdog**: stops pump (or the whole watering session) after `max_work_time_pump`
+* **Session metrics**: pulses & water per session
+* **Lifetime totals in liters**: per route (BIG/SMALL) and combined
+* **Web UI v3** + Wi-Fi info (SSID/IP) + native **Home Assistant** API
+* **Modular packages** (in `packages_pysoon/`) for readability and reuse
+
+> No behavior changes vs your latest config — only structured into packages and documented.
+
+---
+
+## Pysoon — Directory layout
+
+```
+.
+├── pysoon.yaml
+├── packages_pysoon/
+│   ├── core.yaml
+│   ├── globals.yaml
+│   ├── numbers.yaml
+│   ├── buttons.yaml
+│   ├── status.yaml
+│   ├── sensors.yaml
+│   ├── switches.yaml
+│   └── scripts.yaml
+└── secrets.yaml        # fill with your Wi-Fi/API/OTA/Web auth
+```
+
+---
+
+## Pysoon — Requirements
+
+* ESPHome (CLI or HA add-on)
+* ESP32 board (`esp32dev`, ESP-IDF framework)
+* Flow sensor (pulse output)
+* 4 relays:
+
+  * Relay5: **Diverter** (BIG/SMALL)
+  * Relay6: **Valve OUT**
+  * Relay7: **Valve IN**
+  * Relay8: **Pump**
+
+---
+
+## Pysoon — Quick start
+
+1. **Create `secrets.yaml`** (example):
+
+   ```yaml
+   wifi1_ssid: "YOUR-SSID-1"
+   wifi1_pass: "YOUR-PASS-1"
+   wifi2_ssid: "YOUR-SSID-2"
+   wifi2_pass: "YOUR-PASS-2"
+   wifi3_ssid: "YOUR-SSID-3"
+   wifi3_pass: "YOUR-PASS-3"
+
+   ap_pass: ""                # or set a password
+
+   api_password: "strong-api-pass"
+   ota_password: "strong-ota-pass"
+
+   web_user: "zabidok"
+   web_pass: "strong-web-pass"
+   ```
+
+2. **Review substitutions** in `pysoon.yaml` (pins, timeouts, calibration):
+
+   * Pins:
+
+     ```
+     relay_5_pin: GPIO21  # Diverter BIG/SMALL
+     relay_6_pin: GPIO19  # Valve OUT
+     relay_7_pin: GPIO18  # Valve IN
+     relay_8_pin: GPIO05  # Pump
+     flow_pin:   GPIO22   # Flow pulse input
+     ```
+   * Safety/timeouts:
+     `max_work_time_valve: "210s"`, `max_work_time_pump: "200s"`
+   * Dosing:
+
+     * `default_ml_per_pulse: "0.182"`
+     * `tail_ml: "5.0"` (overrun compensation)
+     * `valve_delay_ms: "1000"` (pump→valves stop gap)
+
+3. **Flash & run**:
+
+   ```bash
+   esphome run pysoon.yaml
+   ```
+
+4. Open the **web UI** (from HA device page or by IP). You’ll see **Wi-Fi SSID/IP**, route label (BIG/SMALL), and entities in HA.
+
+---
+
+## Pysoon — Exported entities (HA)
+
+* **Numbers (config)**:
+
+  * `ML per Pulse` (mL/imp)
+  * `Dose Target` (mL)
+  * `Dose Big` (mL)
+  * `Dose Small` (mL)
+* **Buttons**:
+
+  * `Start Watering`, `Stop Watering`
+  * `Dose Test` (dose current route by `Dose Target`)
+  * `Dose Both` (BIG by `Dose Big` → SMALL by `Dose Small`)
+  * `Route → Big Plant`, `Route → Small Plant`
+* **Binary sensors**:
+
+  * `Watering Active`
+  * `Valve Outlet Status` (diverter), `Valve IN Status`, `Valve OUT Status`, `Pump Status`
+* **Sensors**:
+
+  * `Session Pulses` (imp), `Session Water` (mL)
+  * `Water Big` (L), `Water Small` (L), `Water Total` (L)
+  * `WiFi Signal`, `Uptime`
+* **Text sensors**:
+
+  * `Route` (BIG/SMALL)
+  * `WiFi SSID`, `IP Address`
+
+> Session metrics are published frequently while watering; lifetime totals update on boot and when watering stops.
+
+---
+
+## Pysoon — Notes & tips
+
+* **Tail compensation** (`tail_ml`) accounts for inertia (overrun after pump off). If you see consistent +X mL, set `tail_ml ≈ X`.
+* **Watchdogs**:
+
+  * `valves_watchdog`: shared for diverter/IN/OUT; stops after a global timeout if any of them stay on.
+  * `pump_watchdog`: turns pump off; if a session is active, it calls `stop_watering`.
+* **Diverter lock** while watering: route cannot be changed mid-session (prevents cross-watering).
+* **Home Assistant UI**:
+
+  * Put Numbers + Buttons on an Entities card.
+  * Add the totals (L) to a History graph card.
+  * Optionally, make a quick “Dose Both” button in a dedicated tile.
+
+---
+
+## Pysoon — Troubleshooting
+
+* **Over/under dosing** → verify `ML per Pulse` calibration and tweak `tail_ml`.
+* **Unexpected watchdog stops** → increase `max_work_time_valve/pump` slightly.
+* **No pulses** → confirm `flow_pin` pull-up and signal wiring; check `internal_filter` and sensor datasheet limits.
+* **Route label wrong after reboot** → it’s published on boot; if diverter relay is mechanically reversed, flip logic or wiring.
+
+---
+
 # ESPHome — ESP32 BLE Thermometers (ATC) + Web UI
 
 A clean, modular ESPHome setup for ESP32 that:
-- reads temperature/humidity/battery from **ATC MiThermometer** beacons (e.g., LYWSD03MMC flashed with ATC/PVVX firmware),
-- serves a tiny **web UI** with the current Wi-Fi SSID and IP,
-- exposes sensors to **Home Assistant** via native API,
-- is organized into reusable **packages** for easy scaling.
+
+* reads temperature/humidity/battery from **ATC MiThermometer** beacons (e.g., LYWSD03MMC flashed with ATC/PVVX firmware),
+* serves a tiny **web UI** with the current Wi-Fi SSID and IP,
+* exposes sensors to **Home Assistant** via native API,
+* is organized into reusable **packages** for easy scaling.
 
 > ⚠️ No behavior changes from stock ESPHome were introduced in this repo. The comments suggest optional tweaks you can enable later.
 
@@ -12,14 +187,15 @@ A clean, modular ESPHome setup for ESP32 that:
 
 ## Features
 
-- **Modular packages**
-  - `packages/base.yaml`: logging, API, OTA, web server, SNTP time.
-  - `packages/wifi.yaml`: Wi-Fi networks + Wi-Fi info text sensors (SSID/IP).
-  - `packages/ble_atc_pack.yaml`: a reusable pack for one ATC sensor (temp/hum/batt + “last update” timestamp).
-- **Web UI** (async web_server v3) with SSID/IP visible.
-- **Time-aware**: SNTP with timezone for correct timestamps.
-- **Low-noise defaults**: throttled sensor updates to reduce DB churn.
-- **Scalable**: add more ATC sensors with a one-liner each.
+* **Modular packages**
+
+  * `packages/base.yaml`: logging, API, OTA, web server, SNTP time.
+  * `packages/wifi.yaml`: Wi-Fi networks + Wi-Fi info text sensors (SSID/IP).
+  * `packages/ble_atc_pack.yaml`: a reusable pack for one ATC sensor (temp/hum/batt + “last update” timestamp).
+* **Web UI** (async web_server v3) with SSID/IP visible.
+* **Time-aware**: SNTP with timezone for correct timestamps.
+* **Low-noise defaults**: throttled sensor updates to reduce DB churn.
+* **Scalable**: add more ATC sensors with a one-liner each.
 
 ---
 
@@ -38,9 +214,9 @@ A clean, modular ESPHome setup for ESP32 that:
 
 ## Requirements
 
-- ESPHome (CLI or inside Home Assistant)
-- ESP32 board (configured as `esp32dev`, ESP-IDF framework)
-- ATC/PVVX-flashed BLE thermometers broadcasting **ATC** format
+* ESPHome (CLI or inside Home Assistant)
+* ESP32 board (configured as `esp32dev`, ESP-IDF framework)
+* ATC/PVVX-flashed BLE thermometers broadcasting **ATC** format
 
 ---
 
@@ -49,6 +225,7 @@ A clean, modular ESPHome setup for ESP32 that:
 1. **Clone** the repo and open the folder.
 
 2. **Create** a `secrets.yaml` next to your YAMLs (or use your global secrets):
+
    ```yaml
    wifi_ssid_one: "YOUR-SSID-1"
    wifi_ssid_one_pass: "YOUR-PASS-1"
@@ -76,18 +253,17 @@ A clean, modular ESPHome setup for ESP32 that:
    ```
 
 3. **Edit** `temp.yaml` if needed:
-   - Keep `substitutions.name: temp` (or change per node).
-   - Update the MAC addresses in the `vars` blocks to match your sensors.
 
-4. **Flash & run** (choose one):
-   - **ESPHome CLI**
-     ```bash
-     esphome run temp.yaml
-     ```
-   - **Home Assistant → ESPHome add-on**
-     - Add a new device from `temp.yaml` and install.
+   * Keep `substitutions.name: temp` (or change per node).
+   * Update the MAC addresses in the `vars` blocks to match your sensors.
 
-5. Open the device **web UI** (from HA or by IP) — SSID & IP should be visible; sensors should appear in HA.
+4. **Flash & run**:
+
+   ```bash
+   esphome run temp.yaml
+   ```
+
+5. Open the device **web UI** — SSID & IP should be visible; sensors should appear in HA.
 
 ---
 
@@ -102,8 +278,9 @@ ble_bedroom: !include
 ```
 
 Sensors exposed:
-- `bedroom temp` (°C), `bedroom hum` (%), `bedroom batt` (%)
-- `bedroom update` (ISO-8601 timestamp text_sensor)
+
+* `bedroom temp` (°C), `bedroom hum` (%), `bedroom batt` (%)
+* `bedroom update` (ISO-8601 timestamp text_sensor)
 
 ---
 
@@ -132,6 +309,7 @@ packages:
 ```
 
 Flash with:
+
 ```bash
 esphome run livingroom.yaml
 ```
@@ -141,92 +319,68 @@ esphome run livingroom.yaml
 ## Configuration notes
 
 ### Wi-Fi
-- Add up to four networks in `packages/wifi.yaml`.
-- Optionally enable **static IP** (faster reconnects) by uncommenting `manual_ip`.
-- Wi-Fi info sensors:
-  - `WiFi SSID` (text_sensor)
-  - `IP` (text_sensor)
-  - Mark them `internal: true` if you don’t want them in HA (still visible in Web UI).
+
+* Add up to four networks in `packages/wifi.yaml`.
+* Optionally enable **static IP** by uncommenting `manual_ip`.
+* Wi-Fi info sensors:
+
+  * `WiFi SSID` (text_sensor), `IP` (text_sensor)
 
 ### Time
-- SNTP is enabled in `packages/base.yaml` with `timezone: Europe/Sofia`.
-- The “last update” timestamp uses local time but formats as ISO string. You can switch to including the local offset if you prefer (see comment in code).
+
+* SNTP is enabled in `packages/base.yaml` with `timezone: Europe/Sofia`.
 
 ### Security (recommended)
-- In `packages/base.yaml`, uncomment:
-  - `api.encryption.key: !secret api_key`
-  - `ota.password: !secret ota_pass`
-  - `web_server.auth` (username/password)
-- Change the fallback AP password (`ap_pass`) from the default.
+
+* In `packages/base.yaml`, uncomment:
+
+  * `api.encryption.key: !secret api_key`
+  * `ota.password: !secret ota_pass`
+  * `web_server.auth` (username/password)
+* Change the fallback AP password (`ap_pass`) from the default.
 
 ---
 
 ## Performance & memory tips (optional)
 
-> These are **off by default** to keep behavior unchanged. Enable only if you want the trade-offs.
+* Lower logs:
 
-- Lower log verbosity in `packages/base.yaml`:
   ```yaml
   logger:
     level: INFO
-    # baud_rate: 0   # disable UART logs to free the serial port & a bit of CPU
   ```
-- Reduce DB noise by publishing only meaningful changes (in `packages/ble_atc_pack.yaml`):
+* Reduce DB churn:
+
   ```yaml
   temperature:
-    filters:
-      - throttle: 60s
-      - delta: 0.2       # publish only if Δ≥0.2 °C
-    # accuracy_decimals: 1
+    filters: [ { throttle: 60s }, { delta: 0.2 } ]
   humidity:
-    filters:
-      - throttle: 60s
-      - delta: 1.0
+    filters: [ { throttle: 60s }, { delta: 1.0 } ]
   ```
-- Wi-Fi power saving (may add latency to web/API):
+* Wi-Fi power save:
+
   ```yaml
   wifi:
     power_save_mode: LIGHT
-  ```
-- If the device is close to the AP:
-  ```yaml
-  wifi:
-    output_power: 17dB
   ```
 
 ---
 
 ## Troubleshooting
 
-- **No sensors in Home Assistant**
-  - Check logs: `esphome logs temp.yaml`
-  - Ensure the device and HA are on the same subnet.
-  - If using API encryption, the key must match in HA.
-
-- **Web UI not loading**
-  - Confirm the IP in your router or via mDNS: `http://temp.local/` (replace with your node name).
-  - Try reducing log level or disabling heavy logs.
-
-- **Wrong time / timestamps**
-  - Verify `timezone` in `packages/base.yaml`.
-  - Ensure the device has Internet access to reach NTP servers.
-
-- **No BLE readings**
-  - Make sure your thermometers broadcast **ATC** format (ATC/PVVX firmware).
-  - Keep `esp32_ble_tracker` **passive** (as configured) for stability.
-  - Avoid placing the ESP32 too close to strong 2.4 GHz interference sources.
-
-- **Frequent reconnects**
-  - Consider enabling a static IP (`manual_ip`).
-  - Check Wi-Fi signal quality; reduce `output_power` only if you are close to the AP.
+* **No sensors in HA** → `esphome logs temp.yaml`, same subnet, encryption keys match.
+* **Web UI not loading** → check IP/mDNS (`http://<node>.local/`), lower log level.
+* **Wrong time** → verify timezone, Internet for NTP.
+* **No BLE readings** → ATC format broadcasting, tracker passive, avoid RF noise.
+* **Frequent reconnects** → try static IP, check Wi-Fi signal.
 
 ---
 
-## Customization ideas (opt-in)
+## Customization ideas
 
-- Add `delta` filters & `accuracy_decimals` to cut database writes.
-- Periodic battery heartbeat (e.g., every 30 min) to verify the sensor is alive.
-- Per-room dashboards in HA using these entities.
-- Additional device packs reusing the same structure (CO₂ sensors, relays, etc.).
+* Add `delta` filters & `accuracy_decimals` to cut DB writes.
+* “Heartbeat” battery publishes.
+* Per-room Lovelace dashboards.
+* More device packs with the same structure.
 
 ---
