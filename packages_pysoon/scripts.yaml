@@ -1,0 +1,175 @@
+# file packages_pysoon/scripts.yaml
+script:
+  # Start session: reset baseline, capture route, open valves, start pump
+  - id: start_watering
+    mode: restart
+    then:
+      - lambda: |-
+          id(watering_active) = true;
+          id(watering_active_bs).publish_state(true);
+          id(start_pulses) = (uint32_t) id(total_pulses).state;
+          id(session_route_is_big) = id(outlet_selector).state;  // capture route at session start
+      - sensor.template.publish:
+          id: pulses_session
+          state: 0
+      - sensor.template.publish:
+          id: ml_session
+          state: 0.0
+      - lambda: |-
+          id(valve_out).turn_on();  // Valve OUT
+          id(valve_in).turn_on();   // Valve IN
+      - delay: 800ms
+      - lambda: |-
+          id(pump_main).turn_on();  // Pump ON
+      - script.execute: session_burst_update
+      - logger.log: "Water START"
+
+  # Stop session: stop pump/valves, commit lifetime (per route)
+  - id: stop_watering
+    mode: restart
+    then:
+      - lambda: |-
+          id(pump_main).turn_off();  // Pump OFF
+      - delay: ${valve_delay_ms}ms
+      - lambda: |-
+          id(valve_out).turn_off();  // Valve OUT
+          id(valve_in).turn_off();   // Valve IN
+
+          // Pulses run in this session
+          uint32_t run = (uint32_t) id(total_pulses).state - id(start_pulses);
+          if ((int)run < 0) run = 0;
+
+          if (id(session_route_is_big)) {
+            id(lifetime_pulses_big) += (uint64_t) run;
+          } else {
+            id(lifetime_pulses_small) += (uint64_t) run;
+          }
+      - sensor.template.publish:
+          id: ml_total_big
+          state: !lambda 'return (double) id(lifetime_pulses_big) * id(ml_per_pulse).state / 1000.0;'
+      - sensor.template.publish:
+          id: ml_total_small
+          state: !lambda 'return (double) id(lifetime_pulses_small) * id(ml_per_pulse).state / 1000.0;'
+      - sensor.template.publish:
+          id: ml_total_lifetime
+          state: !lambda 'return (double)(id(lifetime_pulses_big)+id(lifetime_pulses_small)) * id(ml_per_pulse).state / 1000.0;'
+      - lambda: |-
+          id(watering_active) = false;
+          id(watering_active_bs).publish_state(false);
+      - logger.log: "Water STOP"
+
+  # Fast UI updates while watering
+  - id: session_burst_update
+    mode: restart
+    then:
+      - while:
+          condition:
+            lambda: "return id(watering_active);"
+          then:
+            - lambda: |-
+                int run = (int) id(total_pulses).state - (int) id(start_pulses);
+                if (run < 0) run = 0;
+                id(pulses_session).publish_state(run);
+                id(ml_session).publish_state(run * id(ml_per_pulse).state);
+            - delay: 200ms
+
+  # Dose current route by dose_target_ml (with tail compensation)
+  - id: dose_ml
+    then:
+      - script.execute: start_watering
+      - wait_until:
+          condition:
+            lambda: "return id(watering_active);"
+      - lambda: |-
+          float k = id(ml_per_pulse).state;
+          if (k <= 0.00001f) k = 0.00001f;  // avoid division by zero
+
+          float target_ml = id(dose_target_ml).state;
+          uint32_t target_pulses = (uint32_t)(target_ml / k + 0.999f);  // ceil
+
+          float tail_ml = ${tail_ml};
+          uint32_t tail_pulses = (uint32_t)(tail_ml / k + 0.999f);
+
+          uint32_t stop_at = (target_pulses > tail_pulses) ? (target_pulses - tail_pulses) : 0;
+
+          id(start_pulses) = (uint32_t) id(total_pulses).state;
+          id(dose_target_pulses) = stop_at;
+
+      - while:
+          condition:
+            lambda: |-
+              uint32_t run = (uint32_t) id(total_pulses).state - id(start_pulses);
+              return (run < id(dose_target_pulses)) && id(watering_active);
+          then:
+            - delay: 100ms
+
+      - script.execute: stop_watering
+
+  # Dose both: first BIG then SMALL
+  - id: dose_both
+    mode: restart
+    then:
+      # BIG first
+      - switch.turn_on: outlet_selector
+      - number.set:
+          id: dose_target_ml
+          value: !lambda "return id(dose_big_ml).state;"
+      - script.execute: dose_ml
+      - wait_until:
+          condition:
+            lambda: "return !id(watering_active);"
+
+      # then SMALL
+      - switch.turn_off: outlet_selector
+      - delay: ${valve_delay_ms}ms
+      - number.set:
+          id: dose_target_ml
+          value: !lambda "return id(dose_small_ml).state;"
+      - script.execute: dose_ml
+      - wait_until:
+          condition:
+            lambda: "return !id(watering_active);"
+
+  # Valves watchdog (shared for IN/OUT/diverter)
+  - id: valves_watchdog
+    mode: restart
+    then:
+      - delay: ${max_work_time_valve}
+      - if:
+          condition:
+            lambda: 'return id(valve_in).state || id(valve_out).state || id(outlet_selector).state;'
+          then:
+            - logger.log: "FAILSAFE: valves max_work_time reached → closing valves"
+            - if:
+                condition:
+                  switch.is_on: valve_in
+                then:
+                  - switch.turn_off: valve_in
+            - if:
+                condition:
+                  switch.is_on: valve_out
+                then:
+                  - switch.turn_off: valve_out
+            - if:
+                condition:
+                  switch.is_on: outlet_selector
+                then:
+                  - switch.turn_off: outlet_selector
+
+  # Pump watchdog
+  - id: pump_watchdog
+    mode: restart
+    then:
+      - delay: ${max_work_time_pump}
+      - if:
+          condition:
+            lambda: 'return id(pump_main).state;'
+          then:
+            - logger.log: "FAILSAFE: pump max_work_time reached"
+            - if:
+                condition:
+                  lambda: 'return id(watering_active);'
+                then:
+                  - script.execute: stop_watering
+                else:
+                  - switch.turn_off: pump_main

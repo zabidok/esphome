@@ -1,0 +1,74 @@
+# file packages_pysoon/sensors.yaml
+sensor:
+  # Flow pulse source (internal)
+  - platform: pulse_meter
+    id: flow_pm
+    internal: true
+    pin:
+      number: ${flow_pin}
+      mode:
+        input: true
+        pullup: true
+    internal_filter: 3ms
+    internal_filter_mode: PULSE
+    timeout: 1s
+    total:
+      id: total_pulses
+      internal: true
+
+  # Session live metrics (published from script)
+  - platform: template
+    id: pulses_session
+    name: "Session Pulses"
+    icon: "mdi:pulse"
+    entity_category: diagnostic
+    unit_of_measurement: "imp"
+    state_class: measurement
+    accuracy_decimals: 0
+
+  - platform: template
+    id: ml_session
+    name: "Session Water"
+    icon: "mdi:water-outline"
+    entity_category: diagnostic
+    unit_of_measurement: "mL"
+    device_class: water
+    state_class: measurement
+    accuracy_decimals: 1
+
+  # Lifetime totals in liters (published on boot and at stop)
+  - platform: template
+    id: ml_total_lifetime
+    name: "Water Total"
+    icon: "mdi:water"
+    entity_category: diagnostic
+    unit_of_measurement: "L"
+    device_class: water
+    state_class: total_increasing
+    accuracy_decimals: 2
+
+  - platform: template
+    id: ml_total_big
+    name: "Water Big"
+    icon: "mdi:water"
+    unit_of_measurement: "L"
+    device_class: water
+    state_class: total_increasing
+    accuracy_decimals: 2
+
+  - platform: template
+    id: ml_total_small
+    name: "Water Small"
+    icon: "mdi:water"
+    unit_of_measurement: "L"
+    device_class: water
+    state_class: total_increasing
+    accuracy_decimals: 2
+
+  # Device diagnostics
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    update_interval: 60s
+
+  - platform: uptime
+    name: "Uptime"

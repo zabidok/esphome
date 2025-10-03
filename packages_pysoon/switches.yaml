@@ -1,0 +1,88 @@
+# file packages_pysoon/switches.yaml
+switch:
+  - platform: gpio
+    id: outlet_selector
+    name: "Valve Outlet"
+    icon: "mdi:pipe-valve"
+    pin: ${relay_5_pin}
+    inverted: false
+    restore_mode: RESTORE_DEFAULT_OFF
+
+    on_turn_on:
+      - script.execute: valves_watchdog
+      - if:
+          condition:
+            lambda: 'return id(watering_active) && !id(session_route_is_big);'
+          then:
+            - logger.log: "Route change blocked while watering (session=SMALL)"
+            - switch.turn_off: outlet_selector
+          else:
+            - text_sensor.template.publish:
+                id: route_label
+                state: "BIG"
+            - logger.log: "Diverter → BIG_PLANT"
+
+    on_turn_off:
+      - if:
+          condition:
+            lambda: |-
+              return !id(valve_in).state && !id(valve_out).state && !id(outlet_selector).state;
+          then:
+            - script.stop: valves_watchdog
+      - if:
+          condition:
+            lambda: 'return id(watering_active) && id(session_route_is_big);'
+          then:
+            - logger.log: "Route change blocked while watering (session=BIG)"
+            - switch.turn_on: outlet_selector
+          else:
+            - text_sensor.template.publish:
+                id: route_label
+                state: "SMALL"
+            - logger.log: "Diverter → SMALL_PLANT"
+
+  - platform: gpio
+    id: valve_out
+    name: "Valve OUT"
+    icon: "mdi:valve"
+    pin: ${relay_6_pin}
+    inverted: false
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - script.execute: valves_watchdog
+    on_turn_off:
+      - if:
+          condition:
+            lambda: |-
+              return !id(valve_in).state && !id(valve_out).state && !id(outlet_selector).state;
+          then:
+            - script.stop: valves_watchdog
+
+  - platform: gpio
+    id: valve_in
+    name: "Valve IN"
+    icon: "mdi:valve"
+    pin: ${relay_7_pin}
+    inverted: false
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - script.execute: valves_watchdog
+    on_turn_off:
+      - if:
+          condition:
+            lambda: |-
+              return !id(valve_in).state && !id(valve_out).state && !id(outlet_selector).state;
+          then:
+            - script.stop: valves_watchdog
+
+  - platform: gpio
+    id: pump_main
+    name: "Pump"
+    icon: "mdi:pump"
+    pin: ${relay_8_pin}
+    inverted: false
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - script.execute: pump_watchdog
+    on_turn_off:
+      - script.stop: pump_watchdog

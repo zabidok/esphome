@@ -1,0 +1,46 @@
+# file packages_pysoon/buttons.yaml
+button:
+  - platform: template
+    id: btn_start_watering
+    name: "Start Watering"
+    icon: "mdi:play-circle"
+    on_press:
+      then:
+        - script.execute: start_watering
+
+  - platform: template
+    id: btn_stop_watering
+    name: "Stop Watering"
+    icon: "mdi:stop-circle"
+    on_press:
+      then:
+        - script.execute: stop_watering
+
+  - platform: template
+    name: "Dose Test"
+    icon: "mdi:water-plus-outline"
+    entity_category: config
+    on_press:
+      then:
+        - script.execute: dose_ml
+
+  - platform: template
+    name: "Route → Big Plant"
+    icon: "mdi:pipe-valve"
+    on_press:
+      then:
+        - switch.turn_on: outlet_selector
+
+  - platform: template
+    name: "Route → Small Plant"
+    icon: "mdi:pipe-valve"
+    on_press:
+      then:
+        - switch.turn_off: outlet_selector
+
+  - platform: template
+    name: "Dose Both"
+    icon: "mdi:water-sync"
+    on_press:
+      then:
+        - script.execute: dose_both

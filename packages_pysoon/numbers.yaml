@@ -1,0 +1,53 @@
+# file packages_pysoon/numbers.yaml
+number:
+  - platform: template
+    id: ml_per_pulse
+    name: "ML per Pulse"
+    icon: "mdi:hydro-power"
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    min_value: 0.10
+    max_value: 10.0
+    step: 0.001
+    initial_value: ${default_ml_per_pulse}
+    unit_of_measurement: "mL/imp"
+
+  - platform: template
+    id: dose_target_ml
+    name: "Dose Target"
+    icon: "mdi:cup-water"
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    min_value: 100
+    max_value: 1000
+    initial_value: 250
+    step: 25
+    unit_of_measurement: "mL"
+
+  - platform: template
+    id: dose_big_ml
+    name: "Dose Big"
+    icon: "mdi:cup-water"
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    min_value: 100
+    max_value: 1000
+    step: 25
+    initial_value: 350
+    unit_of_measurement: "mL"
+
+  - platform: template
+    id: dose_small_ml
+    name: "Dose Small"
+    icon: "mdi:cup-water"
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    min_value: 100
+    max_value: 1000
+    step: 25
+    initial_value: 250
+    unit_of_measurement: "mL"

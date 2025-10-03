@@ -1,29 +1,38 @@
 esphome:
   name: pysoon
+  # Ensure route label is correct right after boot
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          id(route_label).publish_state(id(outlet_selector).state ? "BIG" : "SMALL");
+      - sensor.template.publish:
+          id: ml_total_big
+          state: !lambda "return (double) id(lifetime_pulses_big) * id(ml_per_pulse).state / 1000.0;"
+      - sensor.template.publish:
+          id: ml_total_small
+          state: !lambda "return (double) id(lifetime_pulses_small) * id(ml_per_pulse).state / 1000.0;"
+      - sensor.template.publish:
+          id: ml_total_lifetime
+          state: !lambda "return (double) (id(lifetime_pulses_big)+id(lifetime_pulses_small)) * id(ml_per_pulse).state / 1000.0;"
 
 esp32:
-  # Board lilygo t-relay 8 channels
   board: esp32dev
   framework:
     type: esp-idf
-    # sdkconfig_options:
-    #   CONFIG_BT_ENABLED: y
-    #   CONFIG_BT_BLUEDROID_ENABLED: n
-    #   CONFIG_BT_CLASSIC_ENABLED: n
-    #   CONFIG_BT_NIMBLE_ENABLED: y
-    #   CONFIG_BTDM_CTRL_MODE_BLE_ONLY: y
-    #   CONFIG_BT_NIMBLE_MAX_CONNECTIONS: "1"
-    #   CONFIG_BT_NIMBLE_NVS_PERSIST: y
 
 # ========= CORE =========
 logger:
-  # level: LOG
+  level: DEBUG
+
 wifi:
   networks:
-  - ssid: "AWERY"
-    password: "openfreenet@21"
-  - ssid: "VIVACOM_C153"
-    password: "dGQXNPAd9ukZ"
+    - ssid: "AWERY"
+      password: "openfreenet@21"
+    - ssid: "VIVACOM_C153"
+      password: "dGQXNPAd9ukZ"
+    - ssid: "A1_A5645E"
+      password: "607839e9"
   ap:
     ssid: "Pysoon Hotspot"
     password: ""
@@ -50,32 +59,60 @@ time:
     id: home_time
 
 substitutions:
+  max_work_time_valve: "210s"
+  max_work_time_pump: "200s"
   relay_1_pin: GPIO33
   relay_2_pin: GPIO32
   relay_3_pin: GPIO13
   relay_4_pin: GPIO12
-  relay_5_pin: GPIO21
-  relay_6_pin: GPIO19
-  relay_7_pin: GPIO18
-  relay_8_pin: GPIO05
-  flow_pin: GPIO36          # NOTE: this pin has no internal pullups; if possible move to GPIO27/26/25 with pullup
+  relay_5_pin: GPIO21         # Diverter (Big/Small)
+  relay_6_pin: GPIO19         # Valve OUT
+  relay_7_pin: GPIO18         # Valve IN
+  relay_8_pin: GPIO05         # Pump
+  flow_pin: GPIO22            # NOTE: no internal pullups; prefer 27/26/25 if possible
   default_ml_per_pulse: "0.182"
+  tail_ml: "5.0"
+  valve_delay_ms: "1000"
 
 globals:
-  # Session base (pulses at start)
+  # Session baseline (pulses at start)
   - id: start_pulses
     type: uint32_t
     initial_value: "0"
-  # Watering active flag (for UI and logic)
+
+  # Watering active flag
   - id: watering_active
     type: bool
     initial_value: "false"
 
-# Calibration: milliliters per 1 pulse
+  # Target pulses for dose mode (computed from dose_target_ml)
+  - id: dose_target_pulses
+    type: uint32_t
+    initial_value: "0"
+
+  # Persistent lifetime per route
+  - id: lifetime_pulses_big
+    type: uint64_t
+    restore_value: true
+    initial_value: "0"
+
+  - id: lifetime_pulses_small
+    type: uint64_t
+    restore_value: true
+    initial_value: "0"
+
+  # Route used for the current session (captured at start)
+  - id: session_route_is_big
+    type: bool
+    initial_value: "false"
+
+# ===== Calibration & Targets =====
 number:
   - platform: template
-    name: "ML per Pulse"
     id: ml_per_pulse
+    name: "ML per Pulse"
+    icon: "mdi:hydro-power"
+    entity_category: config
     optimistic: true
     restore_value: true
     min_value: 0.10
@@ -84,94 +121,372 @@ number:
     initial_value: ${default_ml_per_pulse}
     unit_of_measurement: "mL/imp"
 
-# Control buttons
+  - platform: template
+    id: dose_target_ml
+    name: "Dose Target"
+    icon: "mdi:cup-water"
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    min_value: 100
+    max_value: 1000
+    initial_value: 250
+    step: 25
+    unit_of_measurement: "mL"
+
+  - platform: template
+    id: dose_big_ml
+    name: "Dose Big"
+    entity_category: config
+    icon: "mdi:cup-water"
+    optimistic: true
+    restore_value: true
+    min_value: 100
+    max_value: 1000
+    step: 25
+    initial_value: 350
+    unit_of_measurement: "mL"
+
+  - platform: template
+    id: dose_small_ml
+    name: "Dose Small"
+    icon: "mdi:cup-water"
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    min_value: 100
+    max_value: 1000
+    step: 25
+    initial_value: 250
+    unit_of_measurement: "mL"
+
+# ===== Controls =====
 button:
   - platform: template
-    name: "Start Watering"
     id: btn_start_watering
+    name: "Start Watering"
     icon: "mdi:play-circle"
     on_press:
       then:
         - script.execute: start_watering
 
   - platform: template
-    name: "Stop Watering"
     id: btn_stop_watering
+    name: "Stop Watering"
     icon: "mdi:stop-circle"
     on_press:
       then:
         - script.execute: stop_watering
 
-# Status indicator
+  - platform: template
+    name: "Dose Test"
+    icon: "mdi:water-plus-outline"
+    entity_category: config
+    on_press:
+      then:
+        - script.execute: dose_ml
+
+  - platform: template
+    name: "Route → Big Plant"
+    icon: "mdi:pipe-valve"
+    on_press:
+      then:
+        - switch.turn_on: outlet_selector
+
+  - platform: template
+    name: "Route → Small Plant"
+    icon: "mdi:pipe-valve"
+    on_press:
+      then:
+        - switch.turn_off: outlet_selector
+
+  - platform: template
+    name: "Dose Both"
+    icon: "mdi:water-sync"
+    on_press:
+      then:
+        - script.execute: dose_both
+
+# ===== Status =====
 binary_sensor:
   - platform: template
     id: watering_active_bs
     name: "Watering Active"
+    icon: "mdi:water-pump"
 
+  # - platform: template
+  #   id: relay_1_status
+  #   name: "_Relay 1 Status"
+  #   lambda: |-
+  #     return id(relay_1).state;
+  #   entity_category: diagnostic
+
+  # - platform: template
+  #   id: relay_2_status
+  #   name: "_Relay 2 Status"
+  #   lambda: |-
+  #     return id(relay_2).state;
+  #   entity_category: diagnostic
+
+  # - platform: template
+  #   id: relay_3_status
+  #   name: "_Relay 3 Status"
+  #   lambda: |-
+  #     return id(relay_3).state;
+  #   entity_category: diagnostic
+
+  # - platform: template
+  #   id: relay_4_status
+  #   name: "_Relay 4 Status"
+  #   lambda: |-
+  #     return id(relay_4).state;
+  #   entity_category: diagnostic
+
+  - platform: template
+    id: outlet_status
+    name: "Valve Outlet Status"
+    icon: "mdi:pipe-valve"
+    lambda: |-
+      return id(outlet_selector).state;
+    entity_category: diagnostic
+
+  - platform: template
+    id: valve_out_status
+    name: "Valve OUT Status"
+    icon: "mdi:valve"
+    lambda: |-
+      return id(valve_out).state;
+    entity_category: diagnostic
+
+  - platform: template
+    id: valve_in_status
+    name: "Valve IN Status"
+    icon: "mdi:valve"
+    lambda: |-
+      return id(valve_in).state;
+    entity_category: diagnostic
+
+  - platform: template
+    id: pump_main_status
+    name: "Pump Status"
+    icon: "mdi:pump"
+    lambda: |-
+      return id(pump_main).state;
+    entity_category: diagnostic
+
+text_sensor:
+  - platform: template
+    id: route_label
+    name: "Route"
+    icon: "mdi:sign-direction"
+    update_interval: never
+  - platform: wifi_info
+    ip_address:
+      name: "IP Address"
+    ssid:
+      name: "WiFi SSID"
+
+# ===== Sensors =====
 sensor:
-  # Pulse source (internal).
+  # Pulse source (internal). We keep total_pulses hidden.
   - platform: pulse_meter
     id: flow_pm
     internal: true
-    pin: ${flow_pin}
-    internal_filter: 5ms
+    pin:
+      number: ${flow_pin}
+      mode:
+        input: true
+        pullup: true
+    internal_filter: 3ms
     internal_filter_mode: PULSE
     timeout: 1s
     total:
       id: total_pulses
-      name: "Total Pulses (Raw)"
-      unit_of_measurement: "imp"
-      state_class: total_increasing
-      accuracy_decimals: 0
+      internal: true
 
-  # Session metrics (periodic update)
+  # Session live metrics (periodic UI refresh)
   - platform: template
     id: pulses_session
-    name: "Pulses Session"
+    name: "Session Pulses"
+    icon: "mdi:pulse"
+    entity_category: diagnostic
     unit_of_measurement: "imp"
     state_class: measurement
     accuracy_decimals: 0
-    update_interval: 60s
-    lambda: |-
-      int run = (int) id(total_pulses).state - (int) id(start_pulses);
-      if (run < 0) run = 0;
-      return run;
 
   - platform: template
     id: ml_session
-    name: "Water Session"
+    name: "Session Water"
+    icon: "mdi:water-outline"
+    entity_category: diagnostic
     unit_of_measurement: "mL"
     device_class: water
     state_class: measurement
     accuracy_decimals: 1
-    update_interval: 60s
-    lambda: |-
-      // Directly from total to avoid timing dependency
-      int run = (int) id(total_pulses).state - (int) id(start_pulses);
-      if (run < 0) run = 0;
-      return run * id(ml_per_pulse).state;
 
-  # Total (raw: always increasing)
+  # Lifetime totals
   - platform: template
-    id: ml_total_raw
-    name: "Water Total (Raw)"
-    unit_of_measurement: "mL"
+    id: ml_total_lifetime
+    name: "Water Total"
+    icon: "mdi:water"
+    entity_category: diagnostic
+    unit_of_measurement: "L"
     device_class: water
     state_class: total_increasing
-    accuracy_decimals: 1
-    # update_interval: 2s
-    update_interval: never
-    # lambda: |-
-      # return id(total_pulses).state * id(ml_per_pulse).state;
+    accuracy_decimals: 2
 
-# Scripts
+
+  - platform: template
+    id: ml_total_big
+    name: "Water Big"
+    icon: "mdi:water"
+    unit_of_measurement: "L"
+    device_class: water
+    state_class: total_increasing
+    accuracy_decimals: 2
+
+  - platform: template
+    id: ml_total_small
+    name: "Water Small"
+    icon: "mdi:water"
+    unit_of_measurement: "L"
+    device_class: water
+    state_class: total_increasing
+    accuracy_decimals: 2
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    update_interval: 60s
+  - platform: uptime
+    name: "Uptime"
+
+# ===== Switches (Relays) =====
+switch:
+  # - platform: gpio
+  #   id: relay_1
+  #   name: "_Relay 1"
+  #   pin: ${relay_1_pin}
+  #   inverted: false
+  #   restore_mode: RESTORE_DEFAULT_OFF
+
+  # - platform: gpio
+  #   id: relay_2
+  #   name: "_Relay 2"
+  #   pin: ${relay_2_pin}
+  #   inverted: false
+  #   restore_mode: RESTORE_DEFAULT_OFF
+
+  # - platform: gpio
+  #   id: relay_3
+  #   name: "_Relay 3"
+  #   pin: ${relay_3_pin}
+  #   inverted: false
+  #   restore_mode: RESTORE_DEFAULT_OFF
+
+  # - platform: gpio
+  #   id: relay_4
+  #   name: "_Relay 4"
+  #   pin: ${relay_4_pin}
+  #   inverted: false
+  #   restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: gpio
+    id: outlet_selector
+    name: "Valve Outlet"
+    icon: "mdi:pipe-valve"
+    pin: ${relay_5_pin}
+    inverted: false
+    restore_mode: RESTORE_DEFAULT_OFF
+
+    on_turn_on:
+      - script.execute: valves_watchdog
+      - if:
+          condition:
+            lambda: 'return id(watering_active) && !id(session_route_is_big);'
+          then:
+            - logger.log: "Route change blocked while watering (session=SMALL)"
+            - switch.turn_off: outlet_selector
+          else:
+            - text_sensor.template.publish:
+                id: route_label
+                state: "BIG"
+            - logger.log: "Diverter → BIG_PLANT"
+
+    on_turn_off:
+      - if:
+          condition:
+            lambda: |-
+              return !id(valve_in).state && !id(valve_out).state && !id(outlet_selector).state;
+          then:
+            - script.stop: valves_watchdog
+      - if:
+          condition:
+            lambda: 'return id(watering_active) && id(session_route_is_big);'
+          then:
+            - logger.log: "Route change blocked while watering (session=BIG)"
+            - switch.turn_on: outlet_selector
+          else:
+            - text_sensor.template.publish:
+                id: route_label
+                state: "SMALL"
+            - logger.log: "Diverter → SMALL_PLANT"
+
+  - platform: gpio
+    id: valve_out
+    name: "Valve OUT"
+    icon: "mdi:valve"
+    pin: ${relay_6_pin}
+    inverted: false
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - script.execute: valves_watchdog
+    on_turn_off:
+      - if:
+          condition:
+            lambda: |-
+              return !id(valve_in).state && !id(valve_out).state && !id(outlet_selector).state;
+          then:
+            - script.stop: valves_watchdog
+
+  - platform: gpio
+    id: valve_in
+    name: "Valve IN"
+    icon: "mdi:valve"
+    pin: ${relay_7_pin}
+    inverted: false
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - script.execute: valves_watchdog
+    on_turn_off:
+      - if:
+          condition:
+            lambda: |-
+              return !id(valve_in).state && !id(valve_out).state && !id(outlet_selector).state;
+          then:
+            - script.stop: valves_watchdog
+
+  - platform: gpio
+    id: pump_main
+    name: "Pump"
+    icon: "mdi:pump"
+    pin: ${relay_8_pin}
+    inverted: false
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - script.execute: pump_watchdog
+    on_turn_off:
+      - script.stop: pump_watchdog
+
+# ===== Scripts =====
 script:
-  # Start session: reset session counters and baseline
+  # Start session: reset baseline, capture route, open valves, start pump
   - id: start_watering
     mode: restart
     then:
       - lambda: |-
+          id(watering_active) = true;
+          id(watering_active_bs).publish_state(true);
           id(start_pulses) = (uint32_t) id(total_pulses).state;
+          id(session_route_is_big) = id(outlet_selector).state;  // capture route for this session
       - sensor.template.publish:
           id: pulses_session
           state: 0
@@ -179,19 +494,49 @@ script:
           id: ml_session
           state: 0.0
       - lambda: |-
-          id(watering_active) = true;
-          id(watering_active_bs).publish_state(true);
+          id(valve_out).turn_on();  // Valve OUT
+          id(valve_in).turn_on();   // Valve IN
+      - delay: 800ms
+      - lambda: |-
+          id(pump_main).turn_on();  // Pump ON
+      - script.execute: session_burst_update
       - logger.log: "Water START"
 
-  # Stop session: keep session results visible
+  # Stop session: stop pump/valves, commit lifetime (overall + per-route)
   - id: stop_watering
     mode: restart
     then:
       - lambda: |-
+          id(pump_main).turn_off();  // Pump OFF
+      - delay: ${valve_delay_ms}ms
+      - lambda: |-
+          id(valve_out).turn_off();  // Valve OUT
+          id(valve_in).turn_off();   // Valve IN
+          
+          // Pulses run in this session
+          uint32_t run = (uint32_t) id(total_pulses).state - id(start_pulses);
+          if ((int)run < 0) run = 0;
+
+          if (id(session_route_is_big)) {
+            id(lifetime_pulses_big) += (uint64_t) run;
+          } else {
+            id(lifetime_pulses_small) += (uint64_t) run;
+          }
+      - sensor.template.publish:
+          id: ml_total_big
+          state: !lambda "return (double) id(lifetime_pulses_big) * id(ml_per_pulse).state / 1000.0;"
+      - sensor.template.publish:
+          id: ml_total_small
+          state: !lambda "return (double) id(lifetime_pulses_small) * id(ml_per_pulse).state / 1000.0;"
+      - sensor.template.publish:
+          id: ml_total_lifetime
+          state: !lambda "return (double)(id(lifetime_pulses_big)+id(lifetime_pulses_small)) * id(ml_per_pulse).state / 1000.0;"
+      - lambda: |-
           id(watering_active) = false;
           id(watering_active_bs).publish_state(false);
-          id(ml_total_raw).publish_state(id(total_pulses).state * id(ml_per_pulse).state);
       - logger.log: "Water STOP"
+
+  # Fast UI updates while watering (no route math needed)
   - id: session_burst_update
     mode: restart
     then:
@@ -206,3 +551,102 @@ script:
                 id(pulses_session).publish_state(run);
                 id(ml_session).publish_state(run * id(ml_per_pulse).state);
             - delay: 200ms
+
+  # Dose current route by dose_target_ml
+  - id: dose_ml
+    then:
+      - script.execute: start_watering
+      - wait_until:
+          condition:
+            lambda: |-
+              return id(watering_active);  // wait until pump started
+      - lambda: |-
+          float k = id(ml_per_pulse).state;
+          if (k <= 0.00001f) k = 0.00001f;     // avoid division by zero
+          float target_ml = id(dose_target_ml).state;
+          uint32_t target_pulses = (uint32_t)(target_ml / k + 0.999f);  // ceil
+          float tail_ml = ${tail_ml};
+          uint32_t tail_pulses = (uint32_t)(tail_ml / k + 0.999f);
+          uint32_t stop_at = (target_pulses > tail_pulses) ? (target_pulses - tail_pulses) : 0;
+
+          id(start_pulses) = (uint32_t) id(total_pulses).state;
+          id(dose_target_pulses) = stop_at;
+      - while:
+          condition:
+            lambda: |-
+              uint32_t run = (uint32_t) id(total_pulses).state - id(start_pulses);
+              return (run < id(dose_target_pulses)) && id(watering_active);
+          then:
+            - delay: 100ms
+      - script.execute: stop_watering
+
+  # Dose both: first BIG (dose_big_ml), then SMALL (dose_small_ml)
+  - id: dose_both
+    mode: restart
+    then:
+      # BIG first
+      - switch.turn_on: outlet_selector
+      - number.set:
+          id: dose_target_ml
+          value: !lambda "return id(dose_big_ml).state;"
+      - script.execute: dose_ml
+      - wait_until:
+          condition:
+            lambda: |-
+              return !id(watering_active);
+
+      # then SMALL
+      - switch.turn_off: outlet_selector
+      - delay: ${valve_delay_ms}ms
+      - number.set:
+          id: dose_target_ml
+          value: !lambda "return id(dose_small_ml).state;"
+      - script.execute: dose_ml
+      - wait_until:
+          condition:
+            lambda: |-
+              return !id(watering_active);
+
+  - id: valves_watchdog
+    mode: restart
+    then:
+      - delay: ${max_work_time_valve}
+      - if:
+          condition:
+            lambda: |-
+              return id(valve_in).state || id(valve_out).state || id(outlet_selector).state;
+          then:
+            - logger.log: "FAILSAFE: valves max_work_time reached → closing valves"
+            - if:
+                condition:
+                  switch.is_on: valve_in
+                then:
+                  - switch.turn_off: valve_in
+            - if:
+                condition:
+                  switch.is_on: valve_out
+                then:
+                  - switch.turn_off: valve_out
+            - if:
+                condition:
+                  switch.is_on: outlet_selector
+                then:
+                  - switch.turn_off: outlet_selector
+  - id: pump_watchdog
+    mode: restart
+    then:
+      - delay: ${max_work_time_pump}
+      - if:
+          condition:
+            lambda: |-
+              return id(pump_main).state;
+          then:
+            - logger.log: "FAILSAFE: pump max_work_time reached"
+            - if:
+                condition:
+                  lambda: |-
+                    return id(watering_active);
+                then:
+                  - script.execute: stop_watering
+                else:
+                  - switch.turn_off: pump_main
