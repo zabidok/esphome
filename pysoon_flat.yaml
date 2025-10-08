@@ -269,6 +269,35 @@ button:
           - script.execute:
               id: dose_both
     disabled_by_default: false
+  - platform: template
+    name: Reset Lifetime Totals
+    icon: mdi:restart
+    on_press:
+      - then:
+          - logger.log:
+              format: Resetting lifetime counters
+              tag: main
+              args: []
+              level: DEBUG
+          - globals.set:
+              id: lifetime_pulses_big
+              value: '0'
+          - globals.set:
+              id: lifetime_pulses_small
+              value: '0'
+          - lambda: !lambda |-
+              // Align session baseline to current total (optional)
+              id(start_pulses) = (uint32_t) id(total_pulses).state;
+          - sensor.template.publish:
+              id: ml_total_big
+              state: 0.0
+          - sensor.template.publish:
+              id: ml_total_small
+              state: 0.0
+          - sensor.template.publish:
+              id: ml_total_lifetime
+              state: 0.0
+    disabled_by_default: false
 binary_sensor:
   - platform: template
     id: watering_active_bs
@@ -389,37 +418,37 @@ sensor:
     update_interval: 60s
   - platform: template
     id: ml_total_lifetime
-    name: Water Total
+    name: W Total
     icon: mdi:water
     unit_of_measurement: L
     device_class: water
     state_class: total_increasing
     accuracy_decimals: 2
+    update_interval: never
     disabled_by_default: false
     force_update: false
-    update_interval: 60s
   - platform: template
     id: ml_total_big
-    name: Water Big
+    name: W Big
     icon: mdi:water
     unit_of_measurement: L
     device_class: water
     state_class: total_increasing
     accuracy_decimals: 2
+    update_interval: never
     disabled_by_default: false
     force_update: false
-    update_interval: 60s
   - platform: template
     id: ml_total_small
-    name: Water Small
+    name: W Small
     icon: mdi:water
     unit_of_measurement: L
     device_class: water
     state_class: total_increasing
     accuracy_decimals: 2
+    update_interval: never
     disabled_by_default: false
     force_update: false
-    update_interval: 60s
   - platform: wifi_signal
     name: WiFi Signal
     icon: mdi:wifi-strength-3
@@ -501,9 +530,9 @@ switch:
               then:
                 - logger.log:
                     format: Route change blocked while watering (session=SMALL)
-                    level: DEBUG
                     tag: main
                     args: []
+                    level: DEBUG
                 - switch.turn_off:
                     id: outlet_selector
               else:
@@ -512,9 +541,9 @@ switch:
                     state: BIG
                 - logger.log:
                     format: Diverter → BIG_PLANT
-                    level: DEBUG
                     tag: main
                     args: []
+                    level: DEBUG
     on_turn_off:
       - then:
           - if:
@@ -531,9 +560,9 @@ switch:
               then:
                 - logger.log:
                     format: Route change blocked while watering (session=BIG)
-                    level: DEBUG
                     tag: main
                     args: []
+                    level: DEBUG
                 - switch.turn_on:
                     id: outlet_selector
               else:
@@ -542,9 +571,9 @@ switch:
                     state: SMALL
                 - logger.log:
                     format: Diverter → SMALL_PLANT
-                    level: DEBUG
                     tag: main
                     args: []
+                    level: DEBUG
     disabled_by_default: false
     interlock_wait_time: 0ms
   - platform: gpio
@@ -666,9 +695,9 @@ script:
           id: session_burst_update
       - logger.log:
           format: Water START
-          level: DEBUG
           tag: main
           args: []
+          level: DEBUG
     parameters: {}
   - id: stop_watering
     mode: restart
@@ -706,9 +735,9 @@ script:
           id(watering_active_bs).publish_state(false);
       - logger.log:
           format: Water STOP
-          level: DEBUG
           tag: main
           args: []
+          level: DEBUG
     parameters: {}
   - id: session_burst_update
     mode: restart
@@ -798,9 +827,9 @@ script:
           then:
             - logger.log:
                 format: 'FAILSAFE: valves max_work_time reached → closing valves'
-                level: DEBUG
                 tag: main
                 args: []
+                level: DEBUG
             - if:
                 condition:
                   switch.is_on:
@@ -834,9 +863,9 @@ script:
           then:
             - logger.log:
                 format: 'FAILSAFE: pump max_work_time reached'
-                level: DEBUG
                 tag: main
                 args: []
+                level: DEBUG
             - if:
                 condition:
                   lambda: !lambda |-
@@ -859,9 +888,9 @@ script:
           then:
             - logger.log:
                 format: 'FAILSAFE: humidifier max_work_time reached → turning off'
-                level: DEBUG
                 tag: main
                 args: []
+                level: DEBUG
             - switch.turn_off:
                 id: humidifier
     parameters: {}

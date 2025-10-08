@@ -44,3 +44,32 @@ button:
     on_press:
       then:
         - script.execute: dose_both
+        
+  - platform: template
+    name: "Reset Lifetime Totals"
+    icon: "mdi:restart"
+    on_press:
+      - logger.log: "Resetting lifetime counters"
+      # Reset persistent pulse counters (stored in flash)
+      - globals.set:
+          id: lifetime_pulses_big
+          value: "0"
+      - globals.set:
+          id: lifetime_pulses_small
+          value: "0"
+
+      # Optional: realign session baseline so next session starts clean
+      - lambda: |-
+          // Align session baseline to current total (optional)
+          id(start_pulses) = (uint32_t) id(total_pulses).state;
+
+      # Push 0 to the derived sensors so UI updates immediately
+      - sensor.template.publish:
+          id: ml_total_big
+          state: 0.0
+      - sensor.template.publish:
+          id: ml_total_small
+          state: 0.0
+      - sensor.template.publish:
+          id: ml_total_lifetime
+          state: 0.0

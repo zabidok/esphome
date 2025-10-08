@@ -39,31 +39,34 @@ sensor:
   # Lifetime totals in liters (published on boot and at stop)
   - platform: template
     id: ml_total_lifetime
-    name: "Water Total"
+    name: "W Total"
     icon: "mdi:water"
     # entity_category: diagnostic
     unit_of_measurement: "L"
     device_class: water
     state_class: total_increasing
     accuracy_decimals: 2
+    update_interval: never
 
   - platform: template
     id: ml_total_big
-    name: "Water Big"
+    name: "W Big"
     icon: "mdi:water"
     unit_of_measurement: "L"
     device_class: water
     state_class: total_increasing
     accuracy_decimals: 2
+    update_interval: never
 
   - platform: template
     id: ml_total_small
-    name: "Water Small"
+    name: "W Small"
     icon: "mdi:water"
     unit_of_measurement: "L"
     device_class: water
     state_class: total_increasing
     accuracy_decimals: 2
+    update_interval: never
 
   # Device diagnostics
   - platform: wifi_signal
