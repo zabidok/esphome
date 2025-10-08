@@ -1,0 +1,868 @@
+substitutions:
+  max_work_time_valve: 210s
+  max_work_time_pump: 200s
+  max_work_time_humidifier: 120min
+  relay_1_pin: GPIO33
+  relay_2_pin: GPIO32
+  relay_3_pin: GPIO13
+  relay_4_pin: GPIO12
+  relay_5_pin: GPIO21
+  relay_6_pin: GPIO19
+  relay_7_pin: GPIO18
+  relay_8_pin: GPIO05
+  flow_pin: GPIO22
+  default_ml_per_pulse: '0.182'
+  tail_ml: '5.0'
+  valve_delay_ms: '1000'
+esphome:
+  name: pysoon
+  on_boot:
+    - priority: -100.0
+      then:
+        - lambda: !lambda |-
+            id(route_label).publish_state(id(outlet_selector).state ? "BIG" : "SMALL");
+        - sensor.template.publish:
+            id: ml_total_big
+            state: !lambda |-
+              return (double) id(lifetime_pulses_big) * id(ml_per_pulse).state / 1000.0;
+        - sensor.template.publish:
+            id: ml_total_small
+            state: !lambda |-
+              return (double) id(lifetime_pulses_small) * id(ml_per_pulse).state / 1000.0;
+        - sensor.template.publish:
+            id: ml_total_lifetime
+            state: !lambda |-
+              return (double) (id(lifetime_pulses_big)+id(lifetime_pulses_small)) * id(ml_per_pulse).state / 1000.0;
+  min_version: 2025.9.0
+  build_path: build/pysoon
+  friendly_name: ''
+  platformio_options: {}
+  includes: []
+  libraries: []
+  name_add_mac_suffix: false
+  debug_scheduler: false
+  areas: []
+  devices: []
+esp32:
+  board: esp32dev
+  framework:
+    version: 5.4.2
+    sdkconfig_options: {}
+    log_level: ERROR
+    advanced:
+      compiler_optimization: SIZE
+      enable_lwip_assert: true
+      ignore_efuse_custom_mac: false
+      enable_lwip_mdns_queries: true
+      enable_lwip_bridge_interface: false
+      enable_lwip_tcpip_core_locking: true
+      enable_lwip_check_thread_safety: true
+    components: []
+    platform_version: https://github.com/pioarduino/platform-espressif32/releases/download/54.03.21-2/platform-espressif32.zip
+    source: pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v5.4.2/esp-idf-v5.4.2.zip
+    type: esp-idf
+  flash_size: 4MB
+  variant: ESP32
+  cpu_frequency: 160MHZ
+logger:
+  level: DEBUG
+  baud_rate: 115200
+  tx_buffer_size: 512
+  deassert_rts_dtr: false
+  task_log_buffer_size: 768
+  hardware_uart: UART0
+  logs: {}
+wifi:
+  networks:
+    - ssid: AWERY
+      password: openfreenet@21
+      priority: 0.0
+    - ssid: A1_A5645E
+      password: 607839e9
+      priority: 0.0
+    - ssid: VIVACOM_C153
+      password: dGQXNPAd9ukZ
+      priority: 0.0
+  ap:
+    ssid: Pysoon Hotspot
+    password: ''
+    ap_timeout: 1min
+  domain: .local
+  reboot_timeout: 15min
+  power_save_mode: LIGHT
+  fast_connect: false
+  enable_btm: false
+  enable_rrm: false
+  passive_scan: false
+  enable_on_boot: true
+  use_address: pysoon.local
+captive_portal: {}
+api:
+  reboot_timeout: 0s
+  password: NftRu2WZpoQD2trEWDb5I/lALRrmmiuvwpPrOlIWIzE=
+  port: 6053
+  batch_delay: 100ms
+  custom_services: false
+  homeassistant_services: false
+  homeassistant_states: false
+ota:
+  - platform: web_server
+  - platform: esphome
+    password: tQZOxTu+MYroV47evpToiDz6iFcuPocM
+    version: 2
+    port: 3232
+web_server:
+  port: 85
+  version: 3
+  auth:
+    username: zabidok
+    password: Za456579
+  enable_private_network_access: true
+  include_internal: false
+  log: true
+  css_url: ''
+  js_url: https://oi.esphome.io/v3/www.js
+time:
+  - platform: sntp
+    id: home_time
+    timezone: EET-2EEST,M3.5.0/3,M10.5.0/4
+    update_interval: 15min
+    servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+      - 2.pool.ntp.org
+globals:
+  - id: start_pulses
+    type: uint32_t
+    initial_value: '0'
+    restore_value: false
+  - id: watering_active
+    type: bool
+    initial_value: 'false'
+    restore_value: false
+  - id: dose_target_pulses
+    type: uint32_t
+    initial_value: '0'
+    restore_value: false
+  - id: lifetime_pulses_big
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
+  - id: lifetime_pulses_small
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
+  - id: session_route_is_big
+    type: bool
+    initial_value: 'false'
+    restore_value: false
+number:
+  - platform: template
+    id: ml_per_pulse
+    name: ML per Pulse
+    icon: mdi:hydro-power
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    min_value: 0.1
+    max_value: 10.0
+    step: 0.001
+    initial_value: 0.182
+    unit_of_measurement: mL/imp
+    disabled_by_default: false
+    mode: AUTO
+    update_interval: 60s
+  - platform: template
+    id: dose_target_ml
+    name: Dose Target
+    icon: mdi:cup-water
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    min_value: 100.0
+    max_value: 1000.0
+    initial_value: 250.0
+    step: 25.0
+    unit_of_measurement: mL
+    disabled_by_default: false
+    mode: AUTO
+    update_interval: 60s
+  - platform: template
+    id: dose_big_ml
+    name: Dose Big
+    icon: mdi:cup-water
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    min_value: 100.0
+    max_value: 1000.0
+    step: 25.0
+    initial_value: 350.0
+    unit_of_measurement: mL
+    disabled_by_default: false
+    mode: AUTO
+    update_interval: 60s
+  - platform: template
+    id: dose_small_ml
+    name: Dose Small
+    icon: mdi:cup-water
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    min_value: 100.0
+    max_value: 1000.0
+    step: 25.0
+    initial_value: 250.0
+    unit_of_measurement: mL
+    disabled_by_default: false
+    mode: AUTO
+    update_interval: 60s
+button:
+  - platform: template
+    id: btn_start_watering
+    name: Start Watering
+    icon: mdi:play-circle
+    on_press:
+      - then:
+          - script.execute:
+              id: start_watering
+    disabled_by_default: false
+  - platform: template
+    id: btn_stop_watering
+    name: Stop Watering
+    icon: mdi:stop-circle
+    on_press:
+      - then:
+          - script.execute:
+              id: stop_watering
+    disabled_by_default: false
+  - platform: template
+    name: Dose Test
+    icon: mdi:water-plus-outline
+    entity_category: config
+    on_press:
+      - then:
+          - script.execute:
+              id: dose_ml
+    disabled_by_default: false
+  - platform: template
+    name: Route → Big Plant
+    icon: mdi:pipe-valve
+    on_press:
+      - then:
+          - switch.turn_on:
+              id: outlet_selector
+    disabled_by_default: false
+  - platform: template
+    name: Route → Small Plant
+    icon: mdi:pipe-valve
+    on_press:
+      - then:
+          - switch.turn_off:
+              id: outlet_selector
+    disabled_by_default: false
+  - platform: template
+    name: Dose Both
+    icon: mdi:water-sync
+    on_press:
+      - then:
+          - script.execute:
+              id: dose_both
+    disabled_by_default: false
+binary_sensor:
+  - platform: template
+    id: watering_active_bs
+    name: Watering Active
+    icon: mdi:water-pump
+    disabled_by_default: false
+  - platform: template
+    id: outlet_status
+    name: Valve Outlet
+    icon: mdi:pipe-valve
+    lambda: !lambda |-
+      return id(outlet_selector).state;
+    disabled_by_default: false
+  - platform: template
+    id: valve_out_status
+    name: Valve OUT
+    icon: mdi:valve
+    lambda: !lambda |-
+      return id(valve_out).state;
+    disabled_by_default: false
+  - platform: template
+    id: valve_in_status
+    name: Valve IN
+    icon: mdi:valve
+    lambda: !lambda |-
+      return id(valve_in).state;
+    disabled_by_default: false
+  - platform: template
+    id: pump_main_status
+    name: Pump
+    icon: mdi:pump
+    lambda: !lambda |-
+      return id(pump_main).state;
+    disabled_by_default: false
+  - platform: template
+    id: humidifier_status
+    name: Humidifier
+    icon: mdi:weather-windy
+    lambda: !lambda |-
+      return id(humidifier).state;
+    disabled_by_default: false
+text_sensor:
+  - platform: template
+    id: route_label
+    name: Route
+    icon: mdi:sign-direction
+    disabled_by_default: false
+    update_interval: 60s
+  - platform: wifi_info
+    ip_address:
+      name: IP Address
+      icon: mdi:ip
+      disabled_by_default: false
+      entity_category: diagnostic
+      update_interval: 1s
+    ssid:
+      name: WiFi SSID
+      icon: mdi:wifi
+      disabled_by_default: false
+      entity_category: diagnostic
+      update_interval: 1s
+sensor:
+  - platform: pulse_meter
+    id: flow_pm
+    internal: true
+    pin:
+      number: 22
+      mode:
+        input: true
+        pullup: true
+        output: false
+        open_drain: false
+        pulldown: false
+      inverted: false
+      ignore_pin_validation_error: false
+      ignore_strapping_warning: false
+      drive_strength: 20.0
+    internal_filter: 3ms
+    internal_filter_mode: PULSE
+    timeout: 1s
+    total:
+      id: total_pulses
+      internal: true
+      disabled_by_default: false
+      force_update: false
+      unit_of_measurement: pulses
+      icon: mdi:pulse
+      accuracy_decimals: 0
+      state_class: total_increasing
+      name: total_pulses
+    disabled_by_default: false
+    force_update: false
+    unit_of_measurement: pulses/min
+    icon: mdi:pulse
+    accuracy_decimals: 2
+    state_class: measurement
+    name: flow_pm
+  - platform: template
+    id: pulses_session
+    name: Session Pulses
+    icon: mdi:pulse
+    unit_of_measurement: imp
+    state_class: measurement
+    accuracy_decimals: 0
+    disabled_by_default: false
+    force_update: false
+    update_interval: 60s
+  - platform: template
+    id: ml_session
+    name: Session Water
+    icon: mdi:water-outline
+    unit_of_measurement: mL
+    device_class: water
+    state_class: measurement
+    accuracy_decimals: 1
+    disabled_by_default: false
+    force_update: false
+    update_interval: 60s
+  - platform: template
+    id: ml_total_lifetime
+    name: Water Total
+    icon: mdi:water
+    unit_of_measurement: L
+    device_class: water
+    state_class: total_increasing
+    accuracy_decimals: 2
+    disabled_by_default: false
+    force_update: false
+    update_interval: 60s
+  - platform: template
+    id: ml_total_big
+    name: Water Big
+    icon: mdi:water
+    unit_of_measurement: L
+    device_class: water
+    state_class: total_increasing
+    accuracy_decimals: 2
+    disabled_by_default: false
+    force_update: false
+    update_interval: 60s
+  - platform: template
+    id: ml_total_small
+    name: Water Small
+    icon: mdi:water
+    unit_of_measurement: L
+    device_class: water
+    state_class: total_increasing
+    accuracy_decimals: 2
+    disabled_by_default: false
+    force_update: false
+    update_interval: 60s
+  - platform: wifi_signal
+    name: WiFi Signal
+    icon: mdi:wifi-strength-3
+    update_interval: 60s
+    disabled_by_default: false
+    force_update: false
+    unit_of_measurement: dBm
+    accuracy_decimals: 0
+    device_class: signal_strength
+    state_class: measurement
+    entity_category: diagnostic
+  - platform: uptime
+    name: Uptime
+    disabled_by_default: false
+    force_update: false
+    unit_of_measurement: s
+    icon: mdi:timer-outline
+    accuracy_decimals: 0
+    device_class: duration
+    state_class: total_increasing
+    entity_category: diagnostic
+    update_interval: 60s
+    type: seconds
+switch:
+  - platform: gpio
+    id: humidifier
+    name: Humidifier
+    icon: mdi:weather-windy
+    pin:
+      number: 33
+      mode:
+        output: true
+        input: false
+        open_drain: false
+        pullup: false
+        pulldown: false
+      inverted: false
+      ignore_pin_validation_error: false
+      ignore_strapping_warning: false
+      drive_strength: 20.0
+    inverted: false
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - then:
+          - script.execute:
+              id: humidifier_watchdog
+    on_turn_off:
+      - then:
+          - script.stop:
+              id: humidifier_watchdog
+    disabled_by_default: false
+    interlock_wait_time: 0ms
+  - platform: gpio
+    id: outlet_selector
+    name: Valve Outlet
+    icon: mdi:pipe-valve
+    pin:
+      number: 21
+      mode:
+        output: true
+        input: false
+        open_drain: false
+        pullup: false
+        pulldown: false
+      inverted: false
+      ignore_pin_validation_error: false
+      ignore_strapping_warning: false
+      drive_strength: 20.0
+    inverted: false
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - then:
+          - script.execute:
+              id: valves_watchdog
+          - if:
+              condition:
+                lambda: !lambda |-
+                  return id(watering_active) && !id(session_route_is_big);
+              then:
+                - logger.log:
+                    format: Route change blocked while watering (session=SMALL)
+                    level: DEBUG
+                    tag: main
+                    args: []
+                - switch.turn_off:
+                    id: outlet_selector
+              else:
+                - text_sensor.template.publish:
+                    id: route_label
+                    state: BIG
+                - logger.log:
+                    format: Diverter → BIG_PLANT
+                    level: DEBUG
+                    tag: main
+                    args: []
+    on_turn_off:
+      - then:
+          - if:
+              condition:
+                lambda: !lambda |-
+                  return !id(valve_in).state && !id(valve_out).state && !id(outlet_selector).state;
+              then:
+                - script.stop:
+                    id: valves_watchdog
+          - if:
+              condition:
+                lambda: !lambda |-
+                  return id(watering_active) && id(session_route_is_big);
+              then:
+                - logger.log:
+                    format: Route change blocked while watering (session=BIG)
+                    level: DEBUG
+                    tag: main
+                    args: []
+                - switch.turn_on:
+                    id: outlet_selector
+              else:
+                - text_sensor.template.publish:
+                    id: route_label
+                    state: SMALL
+                - logger.log:
+                    format: Diverter → SMALL_PLANT
+                    level: DEBUG
+                    tag: main
+                    args: []
+    disabled_by_default: false
+    interlock_wait_time: 0ms
+  - platform: gpio
+    id: valve_out
+    name: Valve OUT
+    icon: mdi:valve
+    pin:
+      number: 19
+      mode:
+        output: true
+        input: false
+        open_drain: false
+        pullup: false
+        pulldown: false
+      inverted: false
+      ignore_pin_validation_error: false
+      ignore_strapping_warning: false
+      drive_strength: 20.0
+    inverted: false
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - then:
+          - script.execute:
+              id: valves_watchdog
+    on_turn_off:
+      - then:
+          - if:
+              condition:
+                lambda: !lambda |-
+                  return !id(valve_in).state && !id(valve_out).state && !id(outlet_selector).state;
+              then:
+                - script.stop:
+                    id: valves_watchdog
+    disabled_by_default: false
+    interlock_wait_time: 0ms
+  - platform: gpio
+    id: valve_in
+    name: Valve IN
+    icon: mdi:valve
+    pin:
+      number: 18
+      mode:
+        output: true
+        input: false
+        open_drain: false
+        pullup: false
+        pulldown: false
+      inverted: false
+      ignore_pin_validation_error: false
+      ignore_strapping_warning: false
+      drive_strength: 20.0
+    inverted: false
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - then:
+          - script.execute:
+              id: valves_watchdog
+    on_turn_off:
+      - then:
+          - if:
+              condition:
+                lambda: !lambda |-
+                  return !id(valve_in).state && !id(valve_out).state && !id(outlet_selector).state;
+              then:
+                - script.stop:
+                    id: valves_watchdog
+    disabled_by_default: false
+    interlock_wait_time: 0ms
+  - platform: gpio
+    id: pump_main
+    name: Pump
+    icon: mdi:pump
+    pin:
+      number: 5
+      mode:
+        output: true
+        input: false
+        open_drain: false
+        pullup: false
+        pulldown: false
+      inverted: false
+      ignore_pin_validation_error: false
+      ignore_strapping_warning: false
+      drive_strength: 20.0
+    inverted: false
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - then:
+          - script.execute:
+              id: pump_watchdog
+    on_turn_off:
+      - then:
+          - script.stop:
+              id: pump_watchdog
+    disabled_by_default: false
+    interlock_wait_time: 0ms
+script:
+  - id: start_watering
+    mode: restart
+    then:
+      - lambda: !lambda |-
+          id(watering_active) = true;
+          id(watering_active_bs).publish_state(true);
+          id(start_pulses) = (uint32_t) id(total_pulses).state;
+          id(session_route_is_big) = id(outlet_selector).state;  // capture route at session start
+      - sensor.template.publish:
+          id: pulses_session
+          state: 0.0
+      - sensor.template.publish:
+          id: ml_session
+          state: 0.0
+      - lambda: !lambda |-
+          id(valve_out).turn_on();  // Valve OUT
+          id(valve_in).turn_on();   // Valve IN
+      - delay: 800ms
+      - lambda: !lambda |-
+          id(pump_main).turn_on();  // Pump ON
+      - script.execute:
+          id: session_burst_update
+      - logger.log:
+          format: Water START
+          level: DEBUG
+          tag: main
+          args: []
+    parameters: {}
+  - id: stop_watering
+    mode: restart
+    then:
+      - lambda: !lambda |-
+          id(pump_main).turn_off();  // Pump OFF
+      - delay: 1000ms
+      - lambda: !lambda |-
+          id(valve_out).turn_off();  // Valve OUT
+          id(valve_in).turn_off();   // Valve IN
+
+          // Pulses run in this session
+          uint32_t run = (uint32_t) id(total_pulses).state - id(start_pulses);
+          if ((int)run < 0) run = 0;
+
+          if (id(session_route_is_big)) {
+            id(lifetime_pulses_big) += (uint64_t) run;
+          } else {
+            id(lifetime_pulses_small) += (uint64_t) run;
+          }
+      - sensor.template.publish:
+          id: ml_total_big
+          state: !lambda |-
+            return (double) id(lifetime_pulses_big) * id(ml_per_pulse).state / 1000.0;
+      - sensor.template.publish:
+          id: ml_total_small
+          state: !lambda |-
+            return (double) id(lifetime_pulses_small) * id(ml_per_pulse).state / 1000.0;
+      - sensor.template.publish:
+          id: ml_total_lifetime
+          state: !lambda |-
+            return (double)(id(lifetime_pulses_big)+id(lifetime_pulses_small)) * id(ml_per_pulse).state / 1000.0;
+      - lambda: !lambda |-
+          id(watering_active) = false;
+          id(watering_active_bs).publish_state(false);
+      - logger.log:
+          format: Water STOP
+          level: DEBUG
+          tag: main
+          args: []
+    parameters: {}
+  - id: session_burst_update
+    mode: restart
+    then:
+      - while:
+          condition:
+            lambda: !lambda |-
+              return id(watering_active);
+          then:
+            - lambda: !lambda |-
+                int run = (int) id(total_pulses).state - (int) id(start_pulses);
+                if (run < 0) run = 0;
+                id(pulses_session).publish_state(run);
+                id(ml_session).publish_state(run * id(ml_per_pulse).state);
+            - delay: 200ms
+    parameters: {}
+  - id: dose_ml
+    then:
+      - script.execute:
+          id: start_watering
+      - wait_until:
+          condition:
+            lambda: !lambda |-
+              return id(watering_active);
+      - lambda: !lambda |-
+          float k = id(ml_per_pulse).state;
+          if (k <= 0.00001f) k = 0.00001f;  // avoid division by zero
+
+          float target_ml = id(dose_target_ml).state;
+          uint32_t target_pulses = (uint32_t)(target_ml / k + 0.999f);  // ceil
+
+          float tail_ml = 5.0;
+          uint32_t tail_pulses = (uint32_t)(tail_ml / k + 0.999f);
+
+          uint32_t stop_at = (target_pulses > tail_pulses) ? (target_pulses - tail_pulses) : 0;
+
+          id(start_pulses) = (uint32_t) id(total_pulses).state;
+          id(dose_target_pulses) = stop_at;
+      - while:
+          condition:
+            lambda: !lambda |-
+              uint32_t run = (uint32_t) id(total_pulses).state - id(start_pulses);
+              return (run < id(dose_target_pulses)) && id(watering_active);
+          then:
+            - delay: 100ms
+      - script.execute:
+          id: stop_watering
+    mode: single
+    parameters: {}
+  - id: dose_both
+    mode: restart
+    then:
+      - switch.turn_on:
+          id: outlet_selector
+      - number.set:
+          id: dose_target_ml
+          value: !lambda |-
+            return id(dose_big_ml).state;
+      - script.execute:
+          id: dose_ml
+      - wait_until:
+          condition:
+            lambda: !lambda |-
+              return !id(watering_active);
+      - switch.turn_off:
+          id: outlet_selector
+      - delay: 1000ms
+      - number.set:
+          id: dose_target_ml
+          value: !lambda |-
+            return id(dose_small_ml).state;
+      - script.execute:
+          id: dose_ml
+      - wait_until:
+          condition:
+            lambda: !lambda |-
+              return !id(watering_active);
+    parameters: {}
+  - id: valves_watchdog
+    mode: restart
+    then:
+      - delay: 210s
+      - if:
+          condition:
+            lambda: !lambda |-
+              return id(valve_in).state || id(valve_out).state || id(outlet_selector).state;
+          then:
+            - logger.log:
+                format: 'FAILSAFE: valves max_work_time reached → closing valves'
+                level: DEBUG
+                tag: main
+                args: []
+            - if:
+                condition:
+                  switch.is_on:
+                    id: valve_in
+                then:
+                  - switch.turn_off:
+                      id: valve_in
+            - if:
+                condition:
+                  switch.is_on:
+                    id: valve_out
+                then:
+                  - switch.turn_off:
+                      id: valve_out
+            - if:
+                condition:
+                  switch.is_on:
+                    id: outlet_selector
+                then:
+                  - switch.turn_off:
+                      id: outlet_selector
+    parameters: {}
+  - id: pump_watchdog
+    mode: restart
+    then:
+      - delay: 200s
+      - if:
+          condition:
+            lambda: !lambda |-
+              return id(pump_main).state;
+          then:
+            - logger.log:
+                format: 'FAILSAFE: pump max_work_time reached'
+                level: DEBUG
+                tag: main
+                args: []
+            - if:
+                condition:
+                  lambda: !lambda |-
+                    return id(watering_active);
+                then:
+                  - script.execute:
+                      id: stop_watering
+                else:
+                  - switch.turn_off:
+                      id: pump_main
+    parameters: {}
+  - id: humidifier_watchdog
+    mode: restart
+    then:
+      - delay: 120min
+      - if:
+          condition:
+            lambda: !lambda |-
+              return id(humidifier).state;
+          then:
+            - logger.log:
+                format: 'FAILSAFE: humidifier max_work_time reached → turning off'
+                level: DEBUG
+                tag: main
+                args: []
+            - switch.turn_off:
+                id: humidifier
+    parameters: {}
+
