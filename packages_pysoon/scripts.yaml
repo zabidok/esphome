@@ -173,3 +173,13 @@ script:
                   - script.execute: stop_watering
                 else:
                   - switch.turn_off: pump_main
+  - id: humidifier_watchdog
+    mode: restart
+    then:
+      - delay: ${max_work_time_humidifier}
+      - if:
+          condition:
+            lambda: 'return id(humidifier).state;'
+          then:
+            - logger.log: "FAILSAFE: humidifier max_work_time reached → turning off"
+            - switch.turn_off: humidifier

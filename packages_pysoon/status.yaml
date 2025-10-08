@@ -7,31 +7,39 @@ binary_sensor:
 
   - platform: template
     id: outlet_status
-    name: "Valve Outlet Status"
+    name: "Valve Outlet"
     icon: "mdi:pipe-valve"
     lambda: "return id(outlet_selector).state;"
-    entity_category: diagnostic
+    # entity_category: diagnostic
 
   - platform: template
     id: valve_out_status
-    name: "Valve OUT Status"
+    name: "Valve OUT"
     icon: "mdi:valve"
     lambda: "return id(valve_out).state;"
-    entity_category: diagnostic
+    # entity_category: diagnostic
 
   - platform: template
     id: valve_in_status
-    name: "Valve IN Status"
+    name: "Valve IN"
     icon: "mdi:valve"
     lambda: "return id(valve_in).state;"
-    entity_category: diagnostic
+    # entity_category: diagnostic
 
   - platform: template
     id: pump_main_status
-    name: "Pump Status"
+    name: "Pump"
     icon: "mdi:pump"
     lambda: "return id(pump_main).state;"
-    entity_category: diagnostic
+    # entity_category: diagnostic
+  
+  - platform: template
+    id: humidifier_status
+    name: "Humidifier"
+    icon: "mdi:weather-windy"
+    lambda: |-
+      return id(humidifier).state;
+    # entity_category: diagnostic
 
 text_sensor:
   - platform: template
@@ -43,5 +51,7 @@ text_sensor:
   - platform: wifi_info
     ip_address:
       name: "IP Address"
+      icon: mdi:ip
     ssid:
       name: "WiFi SSID"
+      icon: mdi:wifi

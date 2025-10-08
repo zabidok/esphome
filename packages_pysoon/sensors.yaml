@@ -21,7 +21,7 @@ sensor:
     id: pulses_session
     name: "Session Pulses"
     icon: "mdi:pulse"
-    entity_category: diagnostic
+    # entity_category: diagnostic
     unit_of_measurement: "imp"
     state_class: measurement
     accuracy_decimals: 0
@@ -30,7 +30,7 @@ sensor:
     id: ml_session
     name: "Session Water"
     icon: "mdi:water-outline"
-    entity_category: diagnostic
+    # entity_category: diagnostic
     unit_of_measurement: "mL"
     device_class: water
     state_class: measurement
@@ -41,7 +41,7 @@ sensor:
     id: ml_total_lifetime
     name: "Water Total"
     icon: "mdi:water"
-    entity_category: diagnostic
+    # entity_category: diagnostic
     unit_of_measurement: "L"
     device_class: water
     state_class: total_increasing
@@ -68,6 +68,7 @@ sensor:
   # Device diagnostics
   - platform: wifi_signal
     name: "WiFi Signal"
+    icon: "mdi:wifi-strength-3"
     update_interval: 60s
 
   - platform: uptime
