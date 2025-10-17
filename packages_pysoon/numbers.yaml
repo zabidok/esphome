@@ -51,3 +51,36 @@ number:
     step: 25
     initial_value: 250
     unit_of_measurement: "mL"
+    # Target capacity selector: user chooses 1..22 L with step 1
+  - platform: template
+    id: tank_set_l
+    name: Tank Set (L)
+    icon: mdi:beaker-outline
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    min_value: 1
+    max_value: 22
+    step: 1
+    initial_value: 22
+    unit_of_measurement: L
+    disabled_by_default: false
+    mode: AUTO
+    update_interval: never
+
+  # Current remaining volume in the tank; we will subtract dispensed water here
+  - platform: template
+    id: tank_volume_l
+    name: Tank Volume (L)
+    icon: mdi:beaker
+    optimistic: true
+    restore_value: true
+    # allow fine-grained updates from code while still clamping to [0..22]
+    min_value: 0
+    max_value: 22
+    step: 0.01
+    initial_value: 22
+    unit_of_measurement: L
+    disabled_by_default: false
+    mode: AUTO
+    update_interval: never

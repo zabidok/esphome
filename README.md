@@ -382,3 +382,6 @@ esphome run livingroom.yaml
 * More device packs with the same structure.
 
 ---
+
+
+esphome config pysoon_pack.yaml --only-local --show-secrets > pysoon_flat.yaml && sed -E -i 's/(update_interval:\s*)4294967295(\s|$)/\1never\2/g' pysoon_flat.yaml

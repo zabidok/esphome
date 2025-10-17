@@ -44,6 +44,19 @@ script:
           } else {
             id(lifetime_pulses_small) += (uint64_t) run;
           }
+      - number.set:
+          id: tank_volume_l
+          value: !lambda |-
+            // Recompute pulses in this session to be safe
+            int run2 = (int) id(total_pulses).state - (int) id(start_pulses);
+            if (run2 < 0) run2 = 0;
+            // Convert pulses to liters
+            float dispensed_l = (run2 * id(ml_per_pulse).state) / 1000.0f;
+            // Subtract from current volume and clamp into [0..22]
+            float v = id(tank_volume_l).state - dispensed_l;
+            if (v < 0.0f) v = 0.0f;
+            if (v > 22.0f) v = 22.0f;
+            return v;
       - sensor.template.publish:
           id: ml_total_big
           state: !lambda 'return (double) id(lifetime_pulses_big) * id(ml_per_pulse).state / 1000.0;'

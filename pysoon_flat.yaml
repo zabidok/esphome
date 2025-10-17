@@ -217,6 +217,35 @@ number:
     disabled_by_default: false
     mode: AUTO
     update_interval: 60s
+  - platform: template
+    id: tank_set_l
+    name: Tank Set (L)
+    icon: mdi:beaker-outline
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    min_value: 1.0
+    max_value: 22.0
+    step: 1.0
+    initial_value: 22.0
+    unit_of_measurement: L
+    disabled_by_default: false
+    mode: AUTO
+    update_interval: never
+  - platform: template
+    id: tank_volume_l
+    name: Tank Volume (L)
+    icon: mdi:beaker
+    optimistic: true
+    restore_value: true
+    min_value: 0.0
+    max_value: 22.0
+    step: 0.01
+    initial_value: 22.0
+    unit_of_measurement: L
+    disabled_by_default: false
+    mode: AUTO
+    update_interval: never
 button:
   - platform: template
     id: btn_start_watering
@@ -276,9 +305,9 @@ button:
       - then:
           - logger.log:
               format: Resetting lifetime counters
-              tag: main
               args: []
               level: DEBUG
+              tag: main
           - globals.set:
               id: lifetime_pulses_big
               value: '0'
@@ -297,6 +326,21 @@ button:
           - sensor.template.publish:
               id: ml_total_lifetime
               state: 0.0
+    disabled_by_default: false
+  - platform: template
+    id: btn_set_tank_volume
+    name: Set tank volume
+    icon: mdi:beaker-check
+    on_press:
+      - then:
+          - number.set:
+              id: tank_volume_l
+              value: !lambda |-
+                // Apply user-selected capacity to current volume
+                float v = id(tank_set_l).state;
+                if (v < 0.0f) v = 0.0f;
+                if (v > 22.0f) v = 22.0f;
+                return v;
     disabled_by_default: false
 binary_sensor:
   - platform: template
@@ -530,9 +574,9 @@ switch:
               then:
                 - logger.log:
                     format: Route change blocked while watering (session=SMALL)
-                    tag: main
                     args: []
                     level: DEBUG
+                    tag: main
                 - switch.turn_off:
                     id: outlet_selector
               else:
@@ -541,9 +585,9 @@ switch:
                     state: BIG
                 - logger.log:
                     format: Diverter → BIG_PLANT
-                    tag: main
                     args: []
                     level: DEBUG
+                    tag: main
     on_turn_off:
       - then:
           - if:
@@ -560,9 +604,9 @@ switch:
               then:
                 - logger.log:
                     format: Route change blocked while watering (session=BIG)
-                    tag: main
                     args: []
                     level: DEBUG
+                    tag: main
                 - switch.turn_on:
                     id: outlet_selector
               else:
@@ -571,9 +615,9 @@ switch:
                     state: SMALL
                 - logger.log:
                     format: Diverter → SMALL_PLANT
-                    tag: main
                     args: []
                     level: DEBUG
+                    tag: main
     disabled_by_default: false
     interlock_wait_time: 0ms
   - platform: gpio
@@ -695,9 +739,9 @@ script:
           id: session_burst_update
       - logger.log:
           format: Water START
-          tag: main
           args: []
           level: DEBUG
+          tag: main
     parameters: {}
   - id: stop_watering
     mode: restart
@@ -718,6 +762,19 @@ script:
           } else {
             id(lifetime_pulses_small) += (uint64_t) run;
           }
+      - number.set:
+          id: tank_volume_l
+          value: !lambda |-
+            // Recompute pulses in this session to be safe
+            int run2 = (int) id(total_pulses).state - (int) id(start_pulses);
+            if (run2 < 0) run2 = 0;
+            // Convert pulses to liters
+            float dispensed_l = (run2 * id(ml_per_pulse).state) / 1000.0f;
+            // Subtract from current volume and clamp into [0..22]
+            float v = id(tank_volume_l).state - dispensed_l;
+            if (v < 0.0f) v = 0.0f;
+            if (v > 22.0f) v = 22.0f;
+            return v;
       - sensor.template.publish:
           id: ml_total_big
           state: !lambda |-
@@ -735,9 +792,9 @@ script:
           id(watering_active_bs).publish_state(false);
       - logger.log:
           format: Water STOP
-          tag: main
           args: []
           level: DEBUG
+          tag: main
     parameters: {}
   - id: session_burst_update
     mode: restart
@@ -827,9 +884,9 @@ script:
           then:
             - logger.log:
                 format: 'FAILSAFE: valves max_work_time reached → closing valves'
-                tag: main
                 args: []
                 level: DEBUG
+                tag: main
             - if:
                 condition:
                   switch.is_on:
@@ -863,9 +920,9 @@ script:
           then:
             - logger.log:
                 format: 'FAILSAFE: pump max_work_time reached'
-                tag: main
                 args: []
                 level: DEBUG
+                tag: main
             - if:
                 condition:
                   lambda: !lambda |-
@@ -888,9 +945,9 @@ script:
           then:
             - logger.log:
                 format: 'FAILSAFE: humidifier max_work_time reached → turning off'
-                tag: main
                 args: []
                 level: DEBUG
+                tag: main
             - switch.turn_off:
                 id: humidifier
     parameters: {}

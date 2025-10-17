@@ -73,3 +73,17 @@ button:
       - sensor.template.publish:
           id: ml_total_lifetime
           state: 0.0
+  - platform: template
+    id: btn_set_tank_volume
+    name: Set tank volume
+    icon: mdi:beaker-check
+    on_press:
+      - number.set:
+          id: tank_volume_l
+          value: !lambda |-
+            // Apply user-selected capacity to current volume
+            float v = id(tank_set_l).state;
+            if (v < 0.0f) v = 0.0f;
+            if (v > 22.0f) v = 22.0f;
+            return v;
+    disabled_by_default: false
