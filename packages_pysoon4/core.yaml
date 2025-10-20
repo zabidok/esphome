@@ -1,0 +1,43 @@
+# file packages_pysoon4/core.yaml
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Core logger
+logger:
+  level: DEBUG
+
+# Wi-Fi 
+wifi:
+  networks:
+    - ssid: !secret wifi_ssid_one
+      password: !secret wifi_ssid_one_pass
+    - ssid: !secret wifi_ssid_two
+      password: !secret wifi_ssid_two_pass
+    - ssid: !secret wifi_ssid_three
+      password: !secret wifi_ssid_three_pass
+  ap:
+    ssid: "Pysoon Hotspot"
+    password: ""
+
+captive_portal:
+
+api:
+  reboot_timeout: 0s
+  password: !secret api_pass
+
+ota:
+  platform: esphome
+  password: !secret ota_pass
+
+web_server:
+  port: 85
+  version: 3
+  auth:
+    username: !secret web_user
+    password: !secret web_pass
+
+time:
+  - platform: sntp
+    id: home_time

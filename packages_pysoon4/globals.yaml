@@ -1,0 +1,28 @@
+# file packages_pysoon4/globals.yaml
+globals:
+  # Session baseline (pulses at start)
+  - id: start_pulses
+    type: uint32_t
+    initial_value: "0"
+
+  # Watering active flag
+  - id: watering_active
+    type: bool
+    initial_value: "false"
+
+  # Target pulses for dose mode
+  - id: dose_target_pulses
+    type: uint32_t
+    initial_value: "0"
+
+  # Persistent lifetime per plant
+  - id: lifetime_pulses_plant_1
+    type: uint64_t
+    restore_value: true
+    initial_value: "0"
+
+  - id: lifetime_pulses_plant_2
+    type: uint64_t
+    restore_value: true
+    initial_value: "0"
+

@@ -1,0 +1,35 @@
+# file: pysoon_pack4.yaml
+esphome:
+  name: pysoon-new
+  project:
+    name: zabidok.pysoon
+    version: "4.0"
+  
+
+substitutions:
+
+  # Pins
+  relay_1_pin: GPIO33    # empty
+  relay_2_pin: GPIO32    # empty
+  relay_3_pin: GPIO13    # empty
+  relay_4_pin: GPIO12    # empty
+  relay_5_pin: GPIO21    # valve_1
+  relay_6_pin: GPIO19    # pressure
+  relay_7_pin: GPIO18    # suction
+  relay_8_pin: GPIO05    # Pump
+  flow_pin:   GPIO22
+
+  # Calibration/logic constants
+  default_ml_per_pulse: "0.182"
+  tail_ml: "5.0"
+  valve_delay_ms: "1000"
+
+packages:
+  core:     !include packages_pysoon4/core.yaml 
+  globals:  !include packages_pysoon4/globals.yaml
+  numbers:  !include packages_pysoon4/numbers.yaml
+  buttons:  !include packages_pysoon4/buttons.yaml
+  status:   !include packages_pysoon4/status.yaml
+  sensors:  !include packages_pysoon4/sensors.yaml
+  switches: !include packages_pysoon4/switches.yaml
+  scripts:  !include packages_pysoon4/scripts.yaml

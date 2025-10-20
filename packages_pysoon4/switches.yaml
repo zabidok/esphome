@@ -1,0 +1,34 @@
+# file packages_pysoon4/switches.yaml
+switch:
+  - platform: gpio
+    id: valve_1
+    name: "Valve 1"
+    icon: "mdi:pipe-valve"
+    pin: ${relay_5_pin}
+    inverted: false
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: gpio
+    id: valve_pressure
+    name: "Valve Pressure"
+    icon: "mdi:valve"
+    pin: ${relay_6_pin}
+    inverted: false
+    restore_mode: RESTORE_DEFAULT_OFF
+
+
+  - platform: gpio
+    id: valve_suction
+    name: "Valve suction"
+    icon: "mdi:valve"
+    pin: ${relay_7_pin}
+    inverted: false
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: gpio
+    id: pump_main
+    name: "Pump"
+    icon: "mdi:pump"
+    pin: ${relay_8_pin}
+    inverted: false
+    restore_mode: RESTORE_DEFAULT_OFF

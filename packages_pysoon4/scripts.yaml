@@ -1,0 +1,110 @@
+# file packages_pysoon4/scripts.yaml
+script:
+  # Start session: reset baseline, capture route, open valves, start pump
+  - id: start_watering
+    mode: restart
+    then:
+      - lambda: |-
+          id(watering_active) = true;
+          id(watering_active_bs).publish_state(true);
+
+      - sensor.template.publish:
+          id: pulses_session
+          state: 0
+      - sensor.template.publish:
+          id: ml_session
+          state: 0.0
+      - lambda: |-
+          // TODO somethin with route?
+      - delay: 800ms
+      - lambda: |-
+          id(pump_main).turn_on();  // Pump ON
+      - script.execute: session_burst_update
+      - logger.log: "Water START"
+
+  # Stop session: stop pump/valves, commit lifetime (per route)
+  - id: stop_watering
+    mode: restart
+    then:
+      - lambda: |-
+          id(pump_main).turn_off();  // Pump OFF
+      - delay: ${valve_delay_ms}ms
+      - lambda: |-
+          // TODO somethin with route?
+
+          // Pulses run in this session
+          uint32_t run = (uint32_t) id(total_pulses).state - id(start_pulses);
+          if ((int)run < 0) run = 0;
+
+      - number.set:
+          id: tank_volume_l
+          value: !lambda |-
+            // Recompute pulses in this session to be safe
+            int run2 = (int) id(total_pulses).state - (int) id(start_pulses);
+            if (run2 < 0) run2 = 0;
+            // Convert pulses to liters
+            float dispensed_l = (run2 * id(ml_per_pulse).state) / 1000.0f;
+            // Subtract from current volume and clamp into [0..22]
+            float v = id(tank_volume_l).state - dispensed_l;
+            if (v < 0.0f) v = 0.0f;
+            if (v > 22.0f) v = 22.0f;
+            return v;
+      # TODO update lifetimes
+      - lambda: |-
+          id(watering_active) = false;
+          id(watering_active_bs).publish_state(false);
+      - logger.log: "Water STOP"
+
+  # Fast UI updates while watering
+  - id: session_burst_update
+    mode: restart
+    then:
+      - while:
+          condition:
+            lambda: "return id(watering_active);"
+          then:
+            - lambda: |-
+                int run = (int) id(total_pulses).state - (int) id(start_pulses);
+                if (run < 0) run = 0;
+                id(pulses_session).publish_state(run);
+                id(ml_session).publish_state(run * id(ml_per_pulse).state);
+            - delay: 200ms
+
+  # Dose current route by dose_target_ml
+  - id: dose_ml
+    then:
+      - script.execute: start_watering
+      - wait_until:
+          condition:
+            lambda: "return id(watering_active);"
+      - lambda: |-
+          float k = id(ml_per_pulse).state;
+          if (k <= 0.00001f) k = 0.00001f;  // avoid division by zero
+
+          float target_ml = id(dose_target_ml).state;
+          uint32_t target_pulses = (uint32_t)(target_ml / k + 0.999f);  // ceil
+
+          float tail_ml = ${tail_ml};
+          uint32_t tail_pulses = (uint32_t)(tail_ml / k + 0.999f);
+
+          uint32_t stop_at = (target_pulses > tail_pulses) ? (target_pulses - tail_pulses) : 0;
+
+          id(start_pulses) = (uint32_t) id(total_pulses).state;
+          id(dose_target_pulses) = stop_at;
+
+      - while:
+          condition:
+            lambda: |-
+              uint32_t run = (uint32_t) id(total_pulses).state - id(start_pulses);
+              return (run < id(dose_target_pulses)) && id(watering_active);
+          then:
+            - delay: 100ms
+
+      - script.execute: stop_watering
+
+
+  - id: dose_all
+    mode: restart
+    then:
+      - logger.log: "dose_all"
+  

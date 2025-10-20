@@ -1,0 +1,44 @@
+# file packages_pysoon4/status.yaml
+binary_sensor:
+  - platform: template
+    id: watering_active_bs
+    name: "Watering Active"
+    icon: "mdi:water-pump"
+
+  - platform: template
+    id: valve_pressure_status
+    name: "Valve pressure"
+    icon: "mdi:valve"
+    lambda: "return id(valve_pressure).state;"
+    # entity_category: diagnostic
+
+  - platform: template
+    id: valve_suction_status
+    name: "Valve suction"
+    icon: "mdi:valve"
+    lambda: "return id(valve_suction).state;"
+    # entity_category: diagnostic
+
+  - platform: template
+    id: valve_1_status
+    name: "Valve 1"
+    icon: "mdi:valve"
+    lambda: "return id(valve_1).state;"
+    # entity_category: diagnostic
+
+  - platform: template
+    id: pump_main_status
+    name: "Pump"
+    icon: "mdi:pump"
+    lambda: "return id(pump_main).state;"
+    # entity_category: diagnostic
+  
+text_sensor:
+
+  - platform: wifi_info
+    ip_address:
+      name: "IP Address"
+      icon: mdi:ip
+    ssid:
+      name: "WiFi SSID"
+      icon: mdi:wifi

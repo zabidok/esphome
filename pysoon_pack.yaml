@@ -1,5 +1,6 @@
+# file: pysoon_pack.yaml
 esphome:
-  name: pysoon
+  name: pysoon4
   # Ensure route label and totals are correct right after boot
   on_boot:
     priority: -100
